@@ -137,7 +137,7 @@ def build_rows(
 
 class _OpenMeteoBase(BaseCollector):
     source = SOURCE
-    schema_verified = False  # documented API; flip to True after first real run is checked
+    schema_verified = True  # verified against live Open-Meteo responses 2026-09-28
     secret_params = ("apikey",)
 
     def configuration_status(self) -> str | None:

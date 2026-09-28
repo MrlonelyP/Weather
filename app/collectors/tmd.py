@@ -117,6 +117,7 @@ class TmdSynopticCollector(_TmdBase):
 
     job = "tmd.synoptic"
     dataset_prefixes = ("synoptic",)
+    schema_verified = True  # verified against live TMD SYNOP bulletins 2026-09-28
 
     def _enabled_flag(self) -> bool:
         return self.settings.tmd_synoptic_enabled
@@ -204,6 +205,7 @@ class TmdWarningCollector(_TmdBase):
 
     job = "tmd.warning"
     dataset_prefixes = ("warning",)
+    schema_verified = True  # verified against live TMD SIGMET bulletins 2026-09-28
 
     def _enabled_flag(self) -> bool:
         return self.settings.tmd_warning_enabled

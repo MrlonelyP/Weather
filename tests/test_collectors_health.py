@@ -191,3 +191,19 @@ def test_rid_group_summary_does_not_hide_nested_dams(settings):
         codes = sorted(r.reservoir_code for r in s.execute(select(Reservoir)).scalars())
         regions = {r.region for r in s.execute(select(Reservoir)).scalars()}
         assert codes == ["100101", "100102"] and regions == {"ภาคเหนือ"}
+
+
+def test_rid_real_shape_volume_is_current_water_not_storage(settings):
+    # RID reports "storage" == capacity (normal high water) and "volume" == current water.
+    # Regression: the current-water column must come from "volume", not "storage".
+    doc = {"data": [{"id": "200101", "name": "เขื่อนภูมิพล", "capacity": 13462, "storage": 13462,
+                     "active_storage": 9662, "dead_storage": 3800, "volume": 8470.24,
+                     "percent_storage": 62.92, "inflow": 36.16, "outflow": 3}]}
+    outcome = RidDamCollector(settings, mock_fetcher(lambda r: httpx.Response(200, json=doc))).run()
+    assert outcome.status == "OK"
+    with session_scope() as s:
+        st = s.execute(select(ReservoirStatus).limit(1)).scalar_one()
+        assert st.capacity_mcm == 13462
+        assert st.storage_mcm == 8470.24            # current water, from "volume"
+        assert st.usable_storage_mcm == 9662        # from "active_storage"
+        assert st.storage_pct == 62.92

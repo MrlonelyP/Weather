@@ -33,9 +33,12 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "name": ("name", "damname", "nameth", "rsvname", "reservoirname", "damnameth", "stationname"),
     "name_en": ("nameen", "damnameen", "rsvnameen"),
     "capacity": ("capacity", "damcapacity", "maxcapacity", "storagecapacity", "capacitymcm",
-                 "volcapacity", "nhw", "normalhighwater", "maxstorage"),
-    "storage": ("volume", "storage", "currentvolume", "watervolume", "damstorage", "vol",
-                "currentstorage", "volumemcm", "damvolume", "rsvvolume"),
+                 "volcapacity", "nhw", "normalhighwater", "maxstorage",
+                 # RID reports the normal-high-water level under "storage"/"damstorage",
+                 # i.e. the capacity, NOT the current water. Current water is "volume".
+                 "storage", "damstorage", "normalstorage"),
+    "storage": ("volume", "currentvolume", "watervolume", "currentstorage", "vol",
+                "volumemcm", "damvolume", "rsvvolume", "waterstorage"),
     "storage_pct": ("percentstorage", "storagepercent", "percent", "percentage", "perstorage",
                     "percentvolume", "volumepercent", "damstoragepercent", "percentcapacity"),
     "usable": ("usablevolume", "activestorage", "volumeusable", "usablestorage", "useablevolume",
@@ -59,10 +62,17 @@ def _key(k: str) -> str:
 
 
 def _pick(item: dict, field: str):
-    aliases = FIELD_ALIASES[field]
-    for k, v in item.items():
-        if _key(k) in aliases and not isinstance(v, (dict, list)):
-            return v
+    """Return the value for a logical field, preferring earlier aliases.
+
+    Aliases are tried in the order they are listed (not in the payload's key
+    order), so the most specific name wins when several are present - e.g.
+    RID has both "volume" (current water) and "storage" (= capacity), and
+    "volume" must win for the `storage` field.
+    """
+    norm = {_key(k): v for k, v in item.items() if not isinstance(v, (dict, list))}
+    for alias in FIELD_ALIASES[field]:
+        if alias in norm:
+            return norm[alias]
     return None
 
 
@@ -194,6 +204,7 @@ class RidDamCollector(_RidBase):
     size_class = "large"
     dataset = "dam"
     dataset_prefixes = ("dam",)
+    schema_verified = True  # verified against live RID dam API 2026-09-28
 
     def configuration_status(self) -> str | None:
         return None if self.settings.rid_enabled else "DISABLED"
