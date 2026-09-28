@@ -149,10 +149,9 @@ def test_zip_member_download_streams_only_the_tile(dem_dir, monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append((request.method, request.headers.get("range")))
-        if request.method == "HEAD":
-            return httpx.Response(200, headers={"content-length": str(len(blob))})
         start, end = map(int, request.headers["range"].split("=")[1].split("-"))
-        return httpx.Response(206, content=blob[start: end + 1])
+        return httpx.Response(206, content=blob[start: end + 1],
+                              headers={"content-range": f"bytes {start}-{end}/{len(blob)}"})
 
     dem_download._zip_index.clear()
     c = httpx.Client(transport=httpx.MockTransport(handler))
@@ -160,7 +159,7 @@ def test_zip_member_download_streams_only_the_tile(dem_dir, monkeypatch):
     assert res.status == "downloaded" and res.source_member == "N13E100_FABDEM_V1-2.tif"
     assert res.width == 20 and res.nodata == -9999 and res.sha256
     assert (dem_dir / "fabdem_v1_2" / "N13E100.tif").exists()
-    assert all(m == "HEAD" or r for m, r in seen)  # every GET was a range request
+    assert all(m == "GET" and r for m, r in seen)  # only ranged GETs, no HEAD
     missing = dem_download.download_zip_member(c, get_settings(), "fabdem_v1_2", 14, 100)
     assert missing.status == "not_at_source"
 

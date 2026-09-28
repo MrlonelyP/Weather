@@ -38,7 +38,12 @@ jobs:
       - name: OSM waterways (ODbL)
         run: python -m app.cli waterways-import
       - name: HydroSHEDS basins and rivers (levels 5, 7, 12; no rasters)
-        run: python -m app.cli hydro-import --no-rasters
+        # optional: data.hydrosheds.org sometimes refuses cloud-runner IPs (HTTP 403). Without it the
+        # site still works; catchments and upstream/downstream stations stay unavailable.
+        continue-on-error: true
+        run: |
+          for i in 1 2 3; do python -m app.cli hydro-import --no-rasters && exit 0; echo "attempt $i failed"; sleep 30; done
+          echo "::warning::HydroSHEDS download failed - catchment features stay off until it succeeds"; exit 1
       - name: Copernicus DEM for Thailand (kept only on this runner) and station terrain
         run: |
           python -m app.cli terrain-download --dataset copernicus_glo30

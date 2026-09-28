@@ -170,9 +170,11 @@ class HttpRangeFile(io.RawIOBase):
 
     def __init__(self, client: httpx.Client, url: str):
         self.client, self.url, self.pos = client, url, 0
-        head = client.head(url)
-        head.raise_for_status()
-        self.size = int(head.headers["content-length"])
+        # size from a 1-byte ranged GET: some CDNs refuse HEAD from cloud runners
+        r = client.get(url, headers={"Range": "bytes=0-0"})
+        r.raise_for_status()
+        total = r.headers.get("content-range", "").rpartition("/")[2]
+        self.size = int(total) if total.isdigit() else int(r.headers["content-length"])
 
     def readable(self) -> bool:
         return True
