@@ -132,6 +132,13 @@ class Settings(BaseSettings):
     gistda_max_pages: int = 50
     gistda_poll_minutes: int = 360
 
+    # --- ThaiWater / HII national water API (TW-01, TW-02), public --------
+    thaiwater_enabled: bool = True
+    thaiwater_base_url: str = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public"
+    thaiwater_waterlevel_enabled: bool = True
+    thaiwater_rain_enabled: bool = True
+    thaiwater_poll_minutes: int = 60
+
     @property
     def openmeteo_hourly_list(self) -> list[str]:
         return [v.strip() for v in self.openmeteo_hourly_variables.split(",") if v.strip()]

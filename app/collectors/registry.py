@@ -6,6 +6,7 @@ from app.collectors.gistda import GistdaFloodPointCollector, GistdaFloodPolygonC
 from app.collectors.http import HttpFetcher
 from app.collectors.openmeteo import OpenMeteoForecastCollector, OpenMeteoHistoricalCollector
 from app.collectors.rid import RidDamCollector, RidMediumReservoirCollector
+from app.collectors.thaiwater import ThaiWaterLevelCollector, ThaiWaterRainCollector
 from app.collectors.tmd import TmdMetarCollector, TmdSynopticCollector, TmdWarningCollector
 from app.config.settings import Settings
 
@@ -27,6 +28,8 @@ def build_collectors(settings: Settings) -> list[BaseCollector]:
         TmdMetarCollector(settings, fetcher()),
         RidDamCollector(settings, fetcher()),
         RidMediumReservoirCollector(settings, fetcher()),
+        ThaiWaterLevelCollector(settings, fetcher()),
+        ThaiWaterRainCollector(settings, fetcher()),
         GistdaFloodPointCollector(settings, fetcher()),
         GistdaFloodPolygonCollector(settings, fetcher()),
     ]

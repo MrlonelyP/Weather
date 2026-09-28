@@ -291,7 +291,9 @@
       "plan_status": "DISCOVER",
       "note": "นี่คือมาตรฐาน API ไม่ใช่ public central endpoint เดียว",
       "doc_url": "https://standard.thaiwater.net/",
-      "jobs": []
+      "jobs": [
+        "thaiwater.rain"
+      ]
     },
     {
       "id": "TW-02",
@@ -309,7 +311,9 @@
       "plan_status": "DISCOVER",
       "note": "ต้องหา provider endpoint ที่เปิดจริง",
       "doc_url": "https://standard.thaiwater.net/",
-      "jobs": []
+      "jobs": [
+        "thaiwater.waterlevel"
+      ]
     },
     {
       "id": "HII-01",

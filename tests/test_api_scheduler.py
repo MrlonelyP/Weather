@@ -25,10 +25,10 @@ def test_scheduler_registers_each_enabled_job_separately(settings):
     scheduler = BackgroundScheduler(timezone="UTC")
     collectors = configure(scheduler, settings, build_collectors(settings), run_immediately=False)
     job_ids = {j.id for j in scheduler.get_jobs()}
-    assert "openmeteo.forecast.ECMWF" in job_ids and "tmd.synoptic" in job_ids and "rid.dam" in job_ids
+    assert {"openmeteo.forecast.ECMWF","tmd.synoptic","rid.dam","thaiwater.waterlevel"} <= job_ids
     assert "tmd.metar" not in job_ids  # disabled by default (P1)
     assert all(j.max_instances == 1 and j.coalesce for j in scheduler.get_jobs())
-    assert len(collectors) == 11
+    assert len(collectors) == 13  # +2 ThaiWater (waterlevel, rain)
 
 
 def test_health_and_sources(settings):
