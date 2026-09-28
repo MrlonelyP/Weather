@@ -5,3 +5,4 @@ __pycache__
 .pytest_cache
 data
 frontend
+node_modules
