@@ -1,0 +1,11 @@
+{
+  "_comment": "Forecast points used for model data. These are configuration (reference coordinates near each province's town centre), not measurements. Add entries to extend coverage nationwide. province_code = TIS-1099 province code.",
+  "locations": [
+    {"code": "bangkok",       "name_en": "Bangkok",       "name_th": "กรุงเทพมหานคร", "province_code": "10", "lat": 13.7563, "lon": 100.5018, "test_area": true},
+    {"code": "samut_prakan",  "name_en": "Samut Prakan",  "name_th": "สมุทรปราการ",   "province_code": "11", "lat": 13.5991, "lon": 100.5998, "test_area": true},
+    {"code": "nonthaburi",    "name_en": "Nonthaburi",    "name_th": "นนทบุรี",       "province_code": "12", "lat": 13.8621, "lon": 100.5144, "test_area": true},
+    {"code": "pathum_thani",  "name_en": "Pathum Thani",  "name_th": "ปทุมธานี",      "province_code": "13", "lat": 14.0208, "lon": 100.5250, "test_area": true},
+    {"code": "nakhon_pathom", "name_en": "Nakhon Pathom", "name_th": "นครปฐม",        "province_code": "73", "lat": 13.8199, "lon": 100.0622, "test_area": true},
+    {"code": "samut_sakhon",  "name_en": "Samut Sakhon",  "name_th": "สมุทรสาคร",     "province_code": "74", "lat": 13.5475, "lon": 100.2744, "test_area": true}
+  ]
+}
