@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ design tokens
+   Dark weather-intelligence palette (from the product brief).
+   Status colours are semantic and never reused as decoration. */
+@theme {
+  --color-bg-0: #071525;
+  --color-bg-1: #0b1c30;
+  --color-bg-2: #102943;
+  --color-card: #0d2238;
+  --color-card-2: #11294a;
+  --color-line: rgba(120, 170, 220, 0.15);
+  --color-line-strong: rgba(120, 170, 220, 0.28);
+  --color-primary: #3097f3;
+  --color-primary-soft: rgba(48, 151, 243, 0.16);
+  --color-ink: #e6eef7;
+  --color-ink-2: #b9c9da;
+  --color-muted: #8298b0;
+
+  --color-normal: #22c55e;
+  --color-watch: #facc15;
+  --color-warning: #fb923c;
+  --color-critical: #ef4444;
+  --color-unknown: #64748b;
+  --color-rain: #38bdf8;
+  --color-rain-2: #22d3ee;
+  --color-ecmwf: #3b82f6;
+  --color-gfs: #22c55e;
+  --color-jma: #ef4444;
+  --color-consensus: #f8fafc;
+
+  --font-sans: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Anuphan", "IBM Plex Sans Thai", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-card: 14px;
+
+  /* 1400px: five summary cards in one row next to the sidebar */
+  --breakpoint-wide: 87.5rem;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg-0);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* numbers that line up */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* thin dark scrollbars inside panels */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 170, 220, 0.25) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* MapLibre popup skin */
+.maplibregl-popup-content {
+  background: var(--color-card) !important;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line-strong);
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+  font-family: var(--font-sans);
+}
+.maplibregl-popup-tip {
+  border-top-color: var(--color-card) !important;
+  border-bottom-color: var(--color-card) !important;
+}
+.maplibregl-popup-close-button {
+  color: var(--color-muted);
+  font-size: 18px;
+  padding: 2px 8px;
+}
+.maplibregl-ctrl-attrib {
+  background: rgba(7, 21, 37, 0.7) !important;
+  color: var(--color-muted);
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-ink-2) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

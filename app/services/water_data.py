@@ -15,6 +15,29 @@ from app.services.normalizer import utcnow
 
 
 
+# A reference level (bank / warning / critical) from the source is not used when it is 0
+# (placeholder seen for some dam gauges) or more than this far from the observed level
+# (different datum). We never replace it with a guess - it is reported as missing.
+MAX_REF_GAP_M = 30.0
+
+
+def sane_ref(ref: float | None, level: float | None) -> float | None:
+    if ref is None or ref == 0:
+        return None
+    if level is not None and abs(level - ref) > MAX_REF_GAP_M:
+        return None
+    return ref
+
+
+def _ref_note(raw: dict, level: float | None) -> str | None:
+    dropped = [k for k, v in raw.items() if v is not None and sane_ref(v, level) is None]
+    if not dropped:
+        return None
+    names = {"bank": "ตลิ่ง", "warning": "เฝ้าระวัง", "critical": "วิกฤต"}
+    return ("ไม่ใช้ระดับ" + "/".join(names[k] for k in dropped)
+            + " จากต้นทาง เพราะเป็น 0 หรือห่างจากระดับน้ำเกิน 30 ม. (น่าจะคนละระดับอ้างอิง)")
+
+
 def _station_filter(q, scope: str, provinces: list[str]):
     if scope == "key":
         return q.where(WaterStation.extra["is_key_station"].as_boolean().is_(True))
@@ -52,8 +75,11 @@ def stations_state(session: Session, scope: str = "all", provinces: list[str] | 
         if ref - obs[-1].observed_at > max_age:
             continue
         st = stations[sid]
-        state = station_state([(o.observed_at, o.water_level_m) for o in obs], st.bank_level_m,
-                              st.warning_level_m, st.critical_level_m)
+        level = obs[-1].water_level_m
+        refs = {"bank": st.bank_level_m, "warning": st.warning_level_m, "critical": st.critical_level_m}
+        state = station_state([(o.observed_at, o.water_level_m) for o in obs], sane_ref(refs["bank"], level),
+                              sane_ref(refs["warning"], level), sane_ref(refs["critical"], level))
+        state["reference_note"] = _ref_note(refs, level)
         # newest reading that carries the source's own assessment
         src = next((o for o in reversed(obs) if o.source_situation_level is not None
                     or o.source_diff_to_bank_m is not None), None)
@@ -100,7 +126,9 @@ def station_series(session: Session, station_code: str, hours: int = 48) -> dict
                                   WaterLevelObservation.observed_at >= since,
                                   WaterLevelObservation.water_level_m.isnot(None))
                            .order_by(WaterLevelObservation.observed_at)).all()
-    state = station_state([(t, v) for t, v, _ in rows], st.bank_level_m, st.warning_level_m, st.critical_level_m)
+    level = rows[-1][1] if rows else None
+    state = station_state([(t, v) for t, v, _ in rows], sane_ref(st.bank_level_m, level),
+                          sane_ref(st.warning_level_m, level), sane_ref(st.critical_level_m, level))
     return {"station_code": st.station_code, "name": st.name_th, "bank_m": st.bank_level_m,
             "series": [{"time": t, "level_m": v, "discharge_m3s": q} for t, v, q in rows], "state": state}
 
@@ -164,8 +192,12 @@ def station_detail(session: Session, station_code: str, range_key: str = "24h") 
         .order_by(WaterLevelObservation.observed_at)).scalars().all()
     rate_window = [(o.observed_at, o.water_level_m) for o in rows
                    if o.observed_at >= now - timedelta(hours=engine_config()["water"]["rate_window_hours"] + 1)]
+    level = rows[-1].water_level_m if rows else None
+    refs = {"bank": st.bank_level_m, "warning": st.warning_level_m, "critical": st.critical_level_m}
+    bank, warning, critical = (sane_ref(refs[k], level) for k in ("bank", "warning", "critical"))
     state = station_state(rate_window or [(o.observed_at, o.water_level_m) for o in rows[-1:]],
-                          st.bank_level_m, st.warning_level_m, st.critical_level_m)
+                          bank, warning, critical)
+    state["reference_note"] = _ref_note(refs, level)
     last24 = [o for o in rows if o.observed_at >= now - timedelta(hours=24)]
     mx = max(last24, key=lambda o: o.water_level_m, default=None)
     mn = min(last24, key=lambda o: o.water_level_m, default=None)
@@ -180,8 +212,9 @@ def station_detail(session: Session, station_code: str, range_key: str = "24h") 
         "basin": st.river_basin, "province": extra.get("province_name"), "province_code": st.province_code,
         "amphoe": extra.get("amphoe"), "tumbon": extra.get("tumbon"), "agency": extra.get("agency"),
         "lat": st.lat, "lon": st.lon, "source": "thaiwater", "datum": st.datum,
-        "levels": {"bank_m": st.bank_level_m, "warning_m": st.warning_level_m, "critical_m": st.critical_level_m,
-                   "ground_m": st.ground_level_m, "basis": "ระดับอ้างอิงที่ต้นทาง (ThaiWater) กำหนด, ม.รทก."},
+        "levels": {"bank_m": bank, "warning_m": warning, "critical_m": critical,
+                   "ground_m": st.ground_level_m, "basis": "ระดับอ้างอิงที่ต้นทาง (ThaiWater) กำหนด, ม.รทก.",
+                   "note": state["reference_note"]},
         "state": {**state, "discharge_m3s": rows[-1].discharge_m3s if rows else None},
         "stats_24h": {"max_m": mx.water_level_m if mx else None, "max_at": mx.observed_at if mx else None,
                       "min_m": mn.water_level_m if mn else None, "min_at": mn.observed_at if mn else None},

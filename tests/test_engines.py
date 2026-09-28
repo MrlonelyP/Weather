@@ -74,3 +74,11 @@ def test_water_rate_trend_and_status():
     assert system_status(-0.1, 0) == "CRITICAL"
     assert system_status(2.0, 0.0) == "NORMAL"
     assert system_status(0.7, 0.0) == "WATCH"
+
+
+def test_implausible_reference_levels_are_not_used():
+    from app.services.water_data import _ref_note, sane_ref
+    assert sane_ref(0.0, 331.7) is None            # placeholder 0
+    assert sane_ref(4.0, 331.7) is None            # different datum
+    assert sane_ref(2.2, 2.74) == 2.2
+    assert "ตลิ่ง" in _ref_note({"bank": 0.0, "warning": None, "critical": None}, 331.7)

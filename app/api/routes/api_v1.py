@@ -355,3 +355,23 @@ def flood_risk():
 def news():
     return {"available": False, "items": [], "generated_at": utcnow(),
             "reason": "ยังไม่มีแหล่งข่าวที่เชื่อมต่อ (ข่าวจะแสดงแยกจากประกาศทางการ)"}
+
+
+@router.get("/rainfall/forecast")
+def rainfall_forecast(window: str = Query("6h", pattern="^(1h|3h|6h|12h|24h|48h)$"), db: Session = Depends(get_db)):
+    """Consensus forecast rain for the next window at every forecast point (for the map's forecast mode)."""
+    def build():
+        locs = db.execute(select(Location).where(Location.active.is_(True), Location.kind == "forecast_point")
+                          .order_by(Location.id)).scalars().all()
+        points = []
+        for loc in locs:
+            cons = cached(f"cons:{loc.code}", 60, lambda loc=loc: consensus_for_location(db, loc, horizon_hours=48))
+            w = cons["windows"].get(f"rain_{window}")
+            if w and w.get("consensus") is not None:
+                points.append({"code": loc.code, "name": loc.name_th, "lat": loc.lat, "lon": loc.lon,
+                               "value_mm": w["consensus"], "min": w["min"], "max": w["max"],
+                               "confidence": w["confidence"], "n_models": w["n_models"], "kind": "forecast"})
+        return {"window": window, "kind": "forecast", "points": points, "generated_at": utcnow(),
+                "note": "ฝนคาดการณ์ (consensus ECMWF/GFS/JMA) เฉพาะจุดพยากรณ์ในพื้นที่ทดสอบ",
+                "freshness": _forecast_freshness(db)}
+    return cached(f"rainfc:{window}", TTL, build)

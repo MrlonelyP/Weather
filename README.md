@@ -54,7 +54,30 @@ python -m app.cli backfill-rid --start 2026-09-01 --end 2026-09-27
 python -m app.cli reprocess --job rid.dam --failed-only # parse ใหม่จาก raw_payload ไม่เรียก API ซ้ำ
 ```
 
-## Internal API
+## Dashboard (frontend/)
+
+Next.js + TypeScript + Tailwind + MapLibre + ECharts ออกแบบเป็นศูนย์ตรวจสอบสถานการณ์น้ำ (WATER FIRST) รายละเอียดอยู่ใน [frontend/README.md](frontend/README.md)
+
+```bash
+docker compose up -d --build   # db + migrate + api + scheduler + web (http://localhost:3000)
+```
+
+## Engines (v0.1, คำนวณจากข้อมูลที่เก็บแล้วเท่านั้น, ยังไม่ใช้ ML)
+| Engine | ไฟล์ | ทำอะไร |
+|---|---|---|
+| Forecast Consensus | `app/engines/forecast_consensus.py` | พยากรณ์ของระบบจาก ECMWF/GFS/JMA: consensus, min/max/median, spread, confidence (coverage × agreement), ฝน 1/3/6/12/24/48 ชม. |
+| Derived weather | `app/engines/weather_derived.py` | อุณหภูมิที่รู้สึก (Steadman/BoM), สภาพอากาศ |
+| Water calc | `app/engines/water_calc.py` | ระยะถึงตลิ่ง, อัตราการขึ้น (least squares), แนวโน้ม, สถานะที่ระบบคำนวณ แยกจากค่าที่ต้นทางกำหนด |
+| Water impact | `app/engines/water_impact.py` | ฝนที่คาดการณ์อาจทำให้น้ำขึ้นไหม (เชิงคุณภาพ ไม่มีตัวเลขระดับน้ำในอนาคต) |
+
+พารามิเตอร์ทั้งหมดอยู่ใน `app/config/engines.json` และเกณฑ์ความสดของข้อมูลรายแหล่งอยู่ใน `app/config/freshness.json`
+
+## Dashboard API (`/api/*`, อ่านจาก DB เท่านั้น, cache 30 วิ)
+`/api/dashboard/summary` · `/api/sources/health` · `/api/weather/{locations,current,forecast,consensus,stations}` ·
+`/api/rainfall` · `/api/rainfall/{comparison,forecast}` · `/api/water/stations` (filters) · `/api/water/stations/{code}?range=6h|24h|3d|7d` ·
+`/api/water/{filters,nearby,trend}` · `/api/search?q=` · `/api/reservoirs` · `/api/warnings` · `/api/tide` · `/api/flood/{extent,risk}` · `/api/news`
+
+## Internal API (Phase 0)
 | Method | Path | คำอธิบาย |
 |---|---|---|
 | GET | `/health` | สถานะ DB และสถานะรายแหล่ง (last success, latency) |
