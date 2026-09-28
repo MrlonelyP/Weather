@@ -25,7 +25,7 @@
 4. **Render:** สมัครที่ render.com → **New → Blueprint** → เลือก repo นี้ ระบบจะอ่านไฟล์ `render.yaml` เอง
    - ใส่ `DATABASE_URL` (ค่าเดียวกับข้อ 1) แล้วกด **Apply**
    - รอ build เสร็จ จะได้ URL เช่น `https://thai-flood-api.onrender.com`
-   - ลองเปิด `<URL>/health` ถ้าเห็นข้อความ `"database": "ok"` แปลว่าใช้งานได้
+   - ลองเปิด `<URL>/health` ถ้าเห็น `"database":"OK"` แปลว่าใช้งานได้
 5. **Vercel:** สมัครที่ vercel.com → **Add New → Project** → import repo นี้
    - **Root Directory:** `frontend`
    - **Environment Variables:** `BACKEND_URL` = URL ของ Render จากข้อ 4 (ไม่ต้องมี `/` ท้าย)
