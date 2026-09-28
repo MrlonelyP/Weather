@@ -48,6 +48,10 @@ class HttpStatusError(Exception):
         self.raw_payload_id = raw_payload_id
 
 
+class RateLimited(HttpStatusError):
+    """HTTP 429: the source's request quota is exhausted. Not counted as the source being down."""
+
+
 @dataclass
 class Fetched:
     raw_payload_id: int
@@ -151,6 +155,8 @@ class BaseCollector(ABC):
             raw_id, duplicate = raw.id, raw.same_as_id is not None
         log.info("%s %s -> HTTP %d in %d ms (raw_payload_id=%d%s)", self.job, dataset,
                  response.status_code, result.latency_ms, raw_id, ", unchanged" if duplicate else "")
+        if response.status_code == 429:
+            raise RateLimited(response.status_code, url, raw_id)
         if not response.is_success:
             raise HttpStatusError(response.status_code, url, raw_id)
         return Fetched(raw_id, response.status_code, response.text, fetched_at,
@@ -189,6 +195,9 @@ class BaseCollector(ABC):
             except SchemaMismatch as exc:
                 status, error = "REQUIRES_INVESTIGATION", str(exc)
                 log.warning("%s: schema mismatch: %s", self.job, exc)
+            except RateLimited as exc:
+                status, error = "RATE_LIMITED", str(exc)
+                log.warning("%s: rate limited by source: %s", self.job, exc)
             except (FetchError, HttpStatusError, AllRequestsFailed) as exc:
                 status, error = "ERROR", str(exc)
                 log.error("%s: fetch failed: %s", self.job, exc)

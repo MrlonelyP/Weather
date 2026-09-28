@@ -205,5 +205,7 @@ def test_rid_real_shape_volume_is_current_water_not_storage(settings):
         st = s.execute(select(ReservoirStatus).limit(1)).scalar_one()
         assert st.capacity_mcm == 13462
         assert st.storage_mcm == 8470.24            # current water, from "volume"
-        assert st.usable_storage_mcm == 9662        # from "active_storage"
+        assert st.normal_storage_mcm == 13462 and st.dead_storage_mcm == 3800
+        assert abs(st.usable_storage_mcm - 4670.24) < 1e-6   # volume - dead storage (current usable water)
+        assert abs(st.usable_storage_pct - 48.34) < 0.01      # of active capacity 9662
         assert st.storage_pct == 62.92

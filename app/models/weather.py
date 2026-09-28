@@ -36,6 +36,9 @@ class Location(Base):
     geom = mapped_column(Geometry("POINT", srid=4326, spatial_index=True))
     test_area: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # forecast_point = polled for live forecasts; verification_station = backtest point at an obs station
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, default="forecast_point",
+                                      server_default="forecast_point")
 
 
 class WeatherStation(Base):
@@ -132,6 +135,10 @@ class WeatherForecast(ProvenanceMixin, Base):
     # volumetric soil moisture (m3/m3); layer differs per model, e.g. "0-7cm"
     soil_moisture_m3m3: Mapped[float | None] = mapped_column(Float)
     soil_moisture_layer: Mapped[str | None] = mapped_column(String(16))
+    # prepared for models that provide them (NULL otherwise)
+    cape_jkg: Mapped[float | None] = mapped_column(Float)
+    visibility_m: Mapped[float | None] = mapped_column(Float)
+    runoff_mm: Mapped[float | None] = mapped_column(Float)
 
     __table_args__ = (
         UniqueConstraint(

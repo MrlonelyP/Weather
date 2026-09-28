@@ -32,17 +32,21 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "code": ("id", "damid", "damcode", "code", "rsvid", "rsvcode", "reservoirid", "reservoircode", "stationid"),
     "name": ("name", "damname", "nameth", "rsvname", "reservoirname", "damnameth", "stationname"),
     "name_en": ("nameen", "damnameen", "rsvnameen"),
-    "capacity": ("capacity", "damcapacity", "maxcapacity", "storagecapacity", "capacitymcm",
-                 "volcapacity", "nhw", "normalhighwater", "maxstorage",
-                 # RID reports the normal-high-water level under "storage"/"damstorage",
-                 # i.e. the capacity, NOT the current water. Current water is "volume".
-                 "storage", "damstorage", "normalstorage"),
+    # RID API document (app.rid.go.th/reservoir/api/document/dam):
+    #   capacity       ปริมาณน้ำสูงสุด       (max capacity)
+    #   storage        ปริมาณน้ำเก็บกัก      (normal retention volume) - percent_storage is relative to it
+    #   active_storage ปริมาณน้ำใช้การ       (usable CAPACITY = storage - dead_storage)
+    #   dead_storage   ปริมาณใช้การต่ำสุด
+    #   volume         ปริมาณน้ำในเขื่อน     (CURRENT water)
+    "capacity": ("capacity", "damcapacity", "maxcapacity", "capacitymcm", "volcapacity", "maxstorage"),
+    "normal_storage": ("storage", "damstorage", "normalstorage", "storagecapacity", "nhw", "normalhighwater"),
     "storage": ("volume", "currentvolume", "watervolume", "currentstorage", "vol",
                 "volumemcm", "damvolume", "rsvvolume", "waterstorage"),
     "storage_pct": ("percentstorage", "storagepercent", "percent", "percentage", "perstorage",
                     "percentvolume", "volumepercent", "damstoragepercent", "percentcapacity"),
-    "usable": ("usablevolume", "activestorage", "volumeusable", "usablestorage", "useablevolume",
-               "waterusable", "usablewater", "uses", "usewater", "activevolume"),
+    # current usable water when a source reports it directly
+    "usable": ("usablevolume", "volumeusable", "useablevolume", "waterusable", "usablewater", "usewater"),
+    "active_capacity": ("activestorage", "usablestorage", "usablecapacity", "activecapacity"),
     "usable_pct": ("percentusable", "usablepercent", "percentactive", "usablestoragepercent",
                    "percentusablestorage", "usespercent"),
     "inflow": ("inflow", "daminflow", "waterinflow", "inflowvolume", "qin", "inflowmcm"),
@@ -155,15 +159,18 @@ class _RidBase(BaseCollector):
             if not code:
                 continue
             capacity = nz.to_float(_pick(item, "capacity"))
-            storage = nz.to_float(_pick(item, "storage"))
-            for value in (capacity, storage):
+            normal = nz.to_float(_pick(item, "normal_storage"))
+            volume = nz.to_float(_pick(item, "storage"))  # current water
+            dead = nz.to_float(_pick(item, "dead_storage"))
+            active_cap = nz.to_float(_pick(item, "active_capacity"))
+            for value in (capacity, normal, volume):
                 if value is not None and value > MAX_PLAUSIBLE_MCM:
                     raise SchemaMismatch(f"reservoir {code}: value {value} does not look like MCM; unit unclear")
             reservoir = get_or_create(
                 session, Reservoir, {"source": SOURCE, "reservoir_code": code},
                 {"name_th": nz.clean_text(_pick(item, "name")), "name_en": nz.clean_text(_pick(item, "name_en")),
                  "size_class": self.size_class, "region": nz.clean_text(region),
-                 "capacity_mcm": capacity, "min_storage_mcm": nz.to_float(_pick(item, "dead_storage"))},
+                 "capacity_mcm": capacity, "normal_high_storage_mcm": normal, "min_storage_mcm": dead},
                 update=True,
             )
             item_date = nz.parse_datetime(_pick(item, "date"), assume_tz=nz.BANGKOK)
@@ -171,21 +178,32 @@ class _RidBase(BaseCollector):
             if observed_date is None:
                 raise SchemaMismatch("no date in record and no requested date in context")
             inflow, outflow = nz.to_float(_pick(item, "inflow")), nz.to_float(_pick(item, "outflow"))
+            # current usable water: reported directly, else derived from reported volume - dead storage
+            usable = nz.to_float(_pick(item, "usable"))
+            if usable is None and volume is not None and dead is not None:
+                usable = max(volume - dead, 0.0)
+            usable_cap = active_cap if active_cap is not None else (
+                normal - dead if normal is not None and dead is not None else None)
+            usable_pct = nz.to_float(_pick(item, "usable_pct"))
+            if usable_pct is None and usable is not None and usable_cap:
+                usable_pct = round(usable / usable_cap * 100, 2)
             rows.append({
                 "source": SOURCE,
                 "raw_payload_id": raw.id,
                 "reservoir_id": reservoir.id,
                 "observed_date": observed_date,
                 "observed_at": None,
-                "storage_mcm": storage,
+                "storage_mcm": volume,
                 "storage_pct": nz.to_float(_pick(item, "storage_pct")),
-                "usable_storage_mcm": nz.to_float(_pick(item, "usable")),
-                "usable_storage_pct": nz.to_float(_pick(item, "usable_pct")),
+                "usable_storage_mcm": usable,
+                "usable_storage_pct": usable_pct,
                 "inflow_mcm_day": inflow,
                 "outflow_mcm_day": outflow,
                 "inflow_m3s": nz.mcm_per_day_to_m3s(inflow),
                 "outflow_m3s": nz.mcm_per_day_to_m3s(outflow),
                 "capacity_mcm": capacity,
+                "normal_storage_mcm": normal,
+                "dead_storage_mcm": dead,
             })
         if not rows:
             raise SchemaMismatch("reservoir records found but none had an id")
@@ -194,7 +212,8 @@ class _RidBase(BaseCollector):
         return upsert(session, ReservoirStatus, list(unique.values()), constraint="uq_reservoir_status_key",
                       update_columns=["raw_payload_id", "storage_mcm", "storage_pct", "usable_storage_mcm",
                                       "usable_storage_pct", "inflow_mcm_day", "outflow_mcm_day", "inflow_m3s",
-                                      "outflow_m3s", "capacity_mcm", "ingested_at"])
+                                      "outflow_m3s", "capacity_mcm", "normal_storage_mcm", "dead_storage_mcm",
+                                      "ingested_at"])
 
 
 class RidDamCollector(_RidBase):

@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     # Run the APScheduler inside the API process (convenient for dev).
     # For long-running collection run `python -m app.scheduler` as its own process.
     run_scheduler_in_api: bool = False
+    # comma separated origins allowed to call the API from a browser (e.g. the Next.js dev server).
+    # Not needed when the frontend proxies /api through its own server.
+    cors_origins: str = ""
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     # --- HTTP defaults (every collector) -----------------------------------
     http_timeout_seconds: float = 30.0
@@ -102,6 +109,11 @@ class Settings(BaseSettings):
     tmd_synoptic_lookback_hours: int = 6  # re-request recent synoptic hours (late bulletins)
     tmd_warning_poll_minutes: int = 30
     tmd_metar_poll_minutes: int = 30
+    # station metadata (coordinates); TMD's published example credentials by default
+    tmd_stations_enabled: bool = True
+    tmd_station_url: str = "https://data.tmd.go.th/api/Station/v1/"
+    tmd_station_uid: str | None = "api"
+    tmd_station_ukey: str | None = "api12345"
     # WMO block prefix(es) of stations to normalize (48 = Thailand)
     tmd_wmo_prefixes: str = "48"
 
@@ -138,6 +150,14 @@ class Settings(BaseSettings):
     thaiwater_waterlevel_enabled: bool = True
     thaiwater_rain_enabled: bool = True
     thaiwater_poll_minutes: int = 60
+    # provinces whose station history is backfilled/refreshed for trend (TIS-1099 codes)
+    thaiwater_history_provinces: str = "10,11,12,13,14,73,74"
+    thaiwater_history_poll_minutes: int = 360
+    thaiwater_history_hours: int = 24  # scheduled refresh window; CLI backfill can go up to 7 days
+
+    @property
+    def thaiwater_history_provinces_list(self) -> list[str]:
+        return [p.strip() for p in self.thaiwater_history_provinces.split(",") if p.strip()]
 
     @property
     def openmeteo_hourly_list(self) -> list[str]:

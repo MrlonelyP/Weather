@@ -53,6 +53,12 @@ class WaterLevelObservation(ProvenanceMixin, Base):
     discharge_m3s: Mapped[float | None] = mapped_column(Float)
     rain_mm: Mapped[float | None] = mapped_column(Float)
     rain_period_hours: Mapped[float | None] = mapped_column(Float)
+    rain_1h_mm: Mapped[float | None] = mapped_column(Float)  # last-hour rain reported with the 24h value
+    # values computed/assigned by the SOURCE (kept apart from what our system computes)
+    source_prev_level_m: Mapped[float | None] = mapped_column(Float)
+    source_diff_to_bank_m: Mapped[float | None] = mapped_column(Float)
+    source_diff_to_bank_text: Mapped[str | None] = mapped_column(String(64))
+    source_situation_level: Mapped[int | None] = mapped_column(Integer)
 
     __table_args__ = (
         UniqueConstraint("source", "station_id", "observed_at", name="uq_water_level_observation_key"),

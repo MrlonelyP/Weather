@@ -96,3 +96,14 @@ def test_network_errors_exhaust_retries():
     with pytest.raises(FetchError) as info:
         _fetcher(handler, sleeps).get("https://example.test/x")
     assert info.value.attempts == 4 and len(sleeps) == 3
+
+
+def test_quota_429_without_retry_after_is_not_retried():
+    calls, sleeps = [], []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(429, json={"error": True, "reason": "Daily API request limit exceeded"})
+
+    result = _fetcher(handler, sleeps).get("https://example.test/x")
+    assert result.response.status_code == 429 and len(calls) == 1 and sleeps == []

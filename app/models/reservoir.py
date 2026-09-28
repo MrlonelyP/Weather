@@ -48,14 +48,17 @@ class ReservoirStatus(ProvenanceMixin, Base):
     observed_date: Mapped[date] = mapped_column(Date, nullable=False)
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     storage_mcm: Mapped[float | None] = mapped_column(Float)
-    storage_pct: Mapped[float | None] = mapped_column(Float)  # % of capacity
-    usable_storage_mcm: Mapped[float | None] = mapped_column(Float)
+    storage_pct: Mapped[float | None] = mapped_column(Float)  # % as reported by the source (RID: of normal storage)
+    usable_storage_mcm: Mapped[float | None] = mapped_column(Float)  # current usable water (volume - dead storage)
     usable_storage_pct: Mapped[float | None] = mapped_column(Float)
     inflow_mcm_day: Mapped[float | None] = mapped_column(Float)
     outflow_mcm_day: Mapped[float | None] = mapped_column(Float)
     inflow_m3s: Mapped[float | None] = mapped_column(Float)
     outflow_m3s: Mapped[float | None] = mapped_column(Float)
-    capacity_mcm: Mapped[float | None] = mapped_column(Float)  # capacity as reported that day
+    capacity_mcm: Mapped[float | None] = mapped_column(Float)  # max capacity as reported that day
+    # RID "storage" = ปริมาณน้ำเก็บกัก (normal retention volume); percent_storage is relative to it
+    normal_storage_mcm: Mapped[float | None] = mapped_column(Float)
+    dead_storage_mcm: Mapped[float | None] = mapped_column(Float)
 
     __table_args__ = (
         UniqueConstraint("source", "reservoir_id", "observed_date", name="uq_reservoir_status_key"),

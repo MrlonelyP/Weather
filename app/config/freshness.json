@@ -1,0 +1,119 @@
+{
+  "_comment": "Data freshness per collector job. basis: data = newest observation time; model_run = newest model run time; data_date = newest daily report date (00:00 Asia/Bangkok); fetch = last successful fetch (event-based / reference data). Minutes. OFFLINE when consecutive failures >= offline_after_failures. Source-level age = the OLDEST primary job's age (conservative); reference/backfill jobs are not primary.",
+  "offline_after_failures": 3,
+  "jobs": {
+    "openmeteo.forecast.*": {
+      "basis": "model_run",
+      "live": 720,
+      "delayed": 1440,
+      "expected": "~4 รอบ/วัน",
+      "primary": true
+    },
+    "openmeteo.historical_forecast": {
+      "basis": "fetch",
+      "live": 1560,
+      "delayed": 2880,
+      "expected": "วันละครั้ง",
+      "primary": false
+    },
+    "tmd.synoptic": {
+      "basis": "data",
+      "live": 240,
+      "delayed": 420,
+      "expected": "ทุก 3 ชม.",
+      "primary": true
+    },
+    "tmd.warning": {
+      "basis": "fetch",
+      "live": 60,
+      "delayed": 180,
+      "expected": "ตามเหตุการณ์",
+      "primary": false
+    },
+    "tmd.stations": {
+      "basis": "fetch",
+      "live": 2880,
+      "delayed": 10080,
+      "expected": "ข้อมูลอ้างอิง",
+      "primary": false
+    },
+    "tmd.metar": {
+      "basis": "fetch",
+      "live": 60,
+      "delayed": 180,
+      "expected": "ทุก 30 นาที",
+      "primary": false
+    },
+    "rid.dam": {
+      "basis": "data_date",
+      "live": 1800,
+      "delayed": 3240,
+      "expected": "วันละครั้ง",
+      "primary": true
+    },
+    "rid.medium_reservoir": {
+      "basis": "data_date",
+      "live": 1800,
+      "delayed": 3240,
+      "expected": "วันละครั้ง",
+      "primary": false
+    },
+    "thaiwater.waterlevel": {
+      "basis": "data",
+      "live": 90,
+      "delayed": 180,
+      "expected": "รายชั่วโมง",
+      "primary": true
+    },
+    "thaiwater.rain": {
+      "basis": "data",
+      "live": 90,
+      "delayed": 180,
+      "expected": "รายชั่วโมง",
+      "primary": true
+    },
+    "thaiwater.waterlevel_history": {
+      "basis": "fetch",
+      "live": 720,
+      "delayed": 1440,
+      "expected": "ทุก 6 ชม.",
+      "primary": false
+    },
+    "gistda.*": {
+      "basis": "fetch",
+      "live": 1440,
+      "delayed": 2880,
+      "expected": "รายวัน",
+      "primary": true
+    }
+  },
+  "sources": {
+    "tmd": {
+      "label": "กรมอุตุนิยมวิทยา (TMD)"
+    },
+    "openmeteo": {
+      "label": "Open-Meteo (ECMWF/GFS/JMA)"
+    },
+    "rid": {
+      "label": "กรมชลประทาน (RID)"
+    },
+    "thaiwater": {
+      "label": "ThaiWater (สสน.)"
+    },
+    "gistda": {
+      "label": "GISTDA"
+    },
+    "bma": {
+      "label": "BMA (กรุงเทพฯ)",
+      "not_connected": true
+    },
+    "ddpm": {
+      "label": "ปภ. (DDPM)",
+      "not_connected": true
+    },
+    "news": {
+      "label": "ข่าวและสื่อ",
+      "not_connected": true
+    }
+  }
+}

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.collectors.base import BaseCollector, CollectResult, SchemaMismatch
 from app.models import RawPayload, WaterLevelObservation, WaterStation
 from app.services import normalizer as nz
+from app.services.database import session_scope
 from app.services.storage import upsert
 
 log = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ def _station_fields(item: dict, kind: str) -> tuple[str, dict] | None:
             "tumbon": nz.clean_text(_localized(geo.get("tumbon_name"))),
             "province_name": nz.clean_text(_localized(geo.get("province_name"))),
             "is_key_station": station.get("is_key_station"),
-            "situation_level": item.get("situation_level"),
+            "river_name": nz.clean_text(_localized(item.get("river_name"))),
         },
     }
     return str(code), defaults
@@ -89,23 +91,28 @@ class _ThaiWaterBase(BaseCollector):
     def _url(self) -> str:
         return f"{self.settings.thaiwater_base_url.rstrip('/')}/{self._endpoint()}"
 
-    def _station_cache(self, session: Session) -> dict[str, int]:
-        rows = session.execute(
-            select(WaterStation.station_code, WaterStation.id).where(WaterStation.source == SOURCE)
-        ).all()
-        return {code: sid for code, sid in rows}
+    def _station_cache(self, session: Session) -> dict[str, WaterStation]:
+        rows = session.execute(select(WaterStation).where(WaterStation.source == SOURCE)).scalars()
+        return {st.station_code: st for st in rows}
 
     def _ensure_station(self, session: Session, cache: dict, code: str, defaults: dict) -> int:
-        if code in cache:
-            return cache[code]
-        station = WaterStation(source=SOURCE, station_code=code,
-                               **{k: v for k, v in defaults.items() if k != "extra"}, extra=defaults["extra"])
-        # geom for spatial queries
-        if defaults["lat"] is not None and defaults["lon"] is not None:
-            station.geom = f"SRID=4326;POINT({defaults['lon']} {defaults['lat']})"
-        session.add(station)
+        """Create the station, or refresh its metadata from the latest payload (once per run)."""
+        station = cache.get(code)
+        if station is None:
+            station = WaterStation(source=SOURCE, station_code=code)
+            session.add(station)
+            cache[code] = station
+        elif getattr(station, "_refreshed", False):
+            return station.id
+        for key, value in defaults.items():
+            if key == "extra":
+                station.extra = {**(station.extra or {}), **{k: v for k, v in value.items() if v is not None}}
+            elif value is not None:
+                setattr(station, key, value)
+        if station.lat is not None and station.lon is not None:
+            station.geom = f"SRID=4326;POINT({station.lon} {station.lat})"
         session.flush()
-        cache[code] = station.id
+        station._refreshed = True
         return station.id
 
     def collect(self) -> CollectResult:
@@ -155,17 +162,25 @@ class ThaiWaterLevelCollector(_ThaiWaterBase):
             level = nz.to_float(item.get("waterlevel_msl"))
             if level is None:
                 level = nz.to_float(item.get("waterlevel_m"))
+            situation = item.get("situation_level")
             rows.append({
                 "source": SOURCE, "raw_payload_id": raw.id, "station_id": station_id, "observed_at": observed,
                 "water_level_m": level,
                 "discharge_m3s": nz.to_float(item.get("discharge") or item.get("flow_rate")),
+                # as given by ThaiWater - never mixed with values our system computes
+                "source_prev_level_m": nz.to_float(item.get("waterlevel_msl_previous")),
+                "source_diff_to_bank_m": nz.to_float(item.get("diff_wl_bank")),
+                "source_diff_to_bank_text": nz.clean_text(item.get("diff_wl_bank_text")),
+                "source_situation_level": int(situation) if isinstance(situation, (int, float)) else None,
             })
         if not rows:
             raise SchemaMismatch("no usable water level records")
         unique = {(r["station_id"], r["observed_at"]): r for r in rows}
         return upsert(session, WaterLevelObservation, list(unique.values()),
                       constraint="uq_water_level_observation_key",
-                      update_columns=["water_level_m", "discharge_m3s", "raw_payload_id", "ingested_at"])
+                      update_columns=["water_level_m", "discharge_m3s", "source_prev_level_m",
+                                      "source_diff_to_bank_m", "source_diff_to_bank_text",
+                                      "source_situation_level", "raw_payload_id", "ingested_at"])
 
 
 class ThaiWaterRainCollector(_ThaiWaterBase):
@@ -209,10 +224,108 @@ class ThaiWaterRainCollector(_ThaiWaterBase):
             rows.append({
                 "source": SOURCE, "raw_payload_id": raw.id, "station_id": station_id, "observed_at": observed,
                 "rain_mm": rain, "rain_period_hours": 24.0,
+                "rain_1h_mm": nz.to_float(item.get("rain_1h")),
             })
         if not rows:
             raise SchemaMismatch("no usable rain records")
         unique = {(r["station_id"], r["observed_at"]): r for r in rows}
         return upsert(session, WaterLevelObservation, list(unique.values()),
                       constraint="uq_water_level_observation_key",
-                      update_columns=["rain_mm", "rain_period_hours", "raw_payload_id", "ingested_at"])
+                      update_columns=["rain_mm", "rain_period_hours", "rain_1h_mm", "raw_payload_id",
+                                      "ingested_at"])
+
+
+class ThaiWaterLevelHistoryCollector(_ThaiWaterBase):
+    """Hourly/10-min water level history for selected stations (waterlevel_graph).
+
+    Used to backfill trend history (rate of rise) instead of waiting for hourly
+    polls to accumulate. A station is skipped when the graph value at our latest
+    stored time differs from the stored level (guards against a datum mismatch).
+    """
+
+    job = "thaiwater.waterlevel_history"
+    dataset_prefixes = ("waterlevel_graph",)
+    DATUM_TOLERANCE_M = 0.05
+
+    @property
+    def interval_minutes(self) -> int:
+        return self.settings.thaiwater_history_poll_minutes
+
+    def configuration_status(self) -> str | None:
+        return None if self.settings.thaiwater_enabled else "DISABLED"
+
+    def _endpoint(self) -> str:
+        return "waterlevel_graph"
+
+    def _dataset(self) -> str:
+        return "waterlevel_graph"
+
+    def collect(self, station_codes: list[str] | None = None, hours: int | None = None) -> CollectResult:
+        hours = hours or self.settings.thaiwater_history_hours
+        result = CollectResult()
+        with session_scope() as session:
+            q = select(WaterStation.station_code).where(WaterStation.source == SOURCE,
+                                                        WaterStation.station_kind == "river")
+            if station_codes:
+                q = q.where(WaterStation.station_code.in_(station_codes))
+            else:
+                q = q.where(WaterStation.province_code.in_(self.settings.thaiwater_history_provinces_list))
+            codes = [c for (c,) in session.execute(q)]
+        today = nz.bangkok_today()
+        start = today - timedelta(days=max(1, (hours + 23) // 24))
+        for code in codes:
+            params = {"station_type": "tele_waterlevel", "station_id": code,
+                      "start_date": start.isoformat(), "end_date": today.isoformat()}
+            try:
+                fetched = self.fetch(self._dataset(), self._url(), params, context={"station_code": code})
+                result.records += self.normalize_fetched(fetched, force=True)
+            except SchemaMismatch as exc:
+                result.parse_failures += 1
+                result.partial_errors.append(f"{code}: {exc}")
+            except Exception as exc:  # one station must not stop the rest
+                result.partial_errors.append(f"{code}: {exc}")
+        result.details = {"stations": len(codes), "start_date": start.isoformat()}
+        return result
+
+    def normalize(self, session: Session, raw: RawPayload, text: str) -> int:
+        code = (raw.context or {}).get("station_code")
+        try:
+            doc = json.loads(text)
+            points = doc["data"]["graph_data"]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise SchemaMismatch(f"waterlevel_graph not understood: {exc}") from exc
+        station = session.execute(select(WaterStation).where(
+            WaterStation.source == SOURCE, WaterStation.station_code == str(code))).scalar_one_or_none()
+        if station is None:
+            raise SchemaMismatch(f"unknown station {code}")
+        # reference levels published with the graph (source values, metres MSL)
+        for key, attr in (("min_bank", "bank_level_m"), ("warning_level", "warning_level_m"),
+                          ("critical_level", "critical_level_m"), ("ground_level", "ground_level_m")):
+            value = nz.to_float(doc["data"].get(key))
+            if value is not None:
+                setattr(station, attr, value)
+        series = []
+        for p in points:
+            t = nz.parse_datetime(p.get("datetime"), assume_tz=nz.BANGKOK, formats=DT_FORMATS)
+            v = nz.to_float(p.get("value"))
+            if t is not None and v is not None:
+                series.append((t, v, nz.to_float(p.get("discharge"))))
+        if not series:
+            return 0
+        latest = session.execute(
+            select(WaterLevelObservation.observed_at, WaterLevelObservation.water_level_m)
+            .where(WaterLevelObservation.station_id == station.id,
+                   WaterLevelObservation.water_level_m.isnot(None))
+            .order_by(WaterLevelObservation.observed_at.desc()).limit(1)).first()
+        if latest is not None:
+            same_time = [v for t, v, _ in series if t == latest.observed_at]
+            if same_time and abs(same_time[0] - latest.water_level_m) > self.DATUM_TOLERANCE_M:
+                raise SchemaMismatch(
+                    f"station {code}: graph {same_time[0]} vs stored {latest.water_level_m} at "
+                    f"{latest.observed_at.isoformat()} - datum mismatch, skipped")
+        rows = [{"source": SOURCE, "raw_payload_id": raw.id, "station_id": station.id, "observed_at": t,
+                 "water_level_m": v, "discharge_m3s": q} for t, v, q in series]
+        unique = {r["observed_at"]: r for r in rows}
+        # do not overwrite rows from waterlevel_load (they also carry source situation fields)
+        return upsert(session, WaterLevelObservation, list(unique.values()),
+                      constraint="uq_water_level_observation_key")

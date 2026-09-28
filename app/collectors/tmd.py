@@ -309,3 +309,78 @@ def _looks_empty(document) -> bool:
         return all(not isinstance(v, (list, dict)) for v in values) and not any(
             isinstance(v, str) and len(v) > 200 for v in values)
     return False
+
+
+class TmdStationCollector(_TmdBase):
+    """TMD station metadata (names, province, coordinates) -> weather_station.
+
+    SYNOP reports carry only the WMO index; this fills in where each station is.
+    Endpoint: data.tmd.go.th Station/v1 (uid/ukey in .env; defaults are TMD's
+    published example credentials).
+    """
+
+    job = "tmd.stations"
+    dataset_prefixes = ("stations",)
+    secret_params = ("uid", "ukey")
+    schema_verified = True  # checked against the live response 2026-09-28
+
+    def _enabled_flag(self) -> bool:
+        return self.settings.tmd_stations_enabled
+
+    def configuration_status(self) -> str | None:
+        status = super().configuration_status()
+        if status:
+            return status
+        if not (self.settings.tmd_station_uid and self.settings.tmd_station_ukey):
+            return "NO_API_KEY"
+        return None
+
+    @property
+    def interval_minutes(self) -> int:
+        return 24 * 60
+
+    def collect(self) -> CollectResult:
+        s = self.settings
+        fetched = self.fetch("stations", s.tmd_station_url,
+                             {"uid": s.tmd_station_uid, "ukey": s.tmd_station_ukey, "format": "json"})
+        return CollectResult(records=self.normalize_fetched(fetched, force=True))
+
+    def normalize(self, session: Session, raw: RawPayload, text: str) -> int:
+        from sqlalchemy import select as _select
+
+        from app.models import WaterStation
+
+        document = _load_json(text)
+        stations = None
+        if isinstance(document, dict):
+            node = document.get("Station") or document.get("Stations")
+            stations = node if isinstance(node, list) else None
+        if not stations:
+            raise SchemaMismatch("no Station list in response")
+        # province name -> TIS-1099 code, learned from ThaiWater geocodes (source data, not typed by hand)
+        province_codes = {}
+        for extra, code in session.execute(
+                _select(WaterStation.extra, WaterStation.province_code).where(WaterStation.province_code.isnot(None))):
+            name = (extra or {}).get("province_name")
+            if name:
+                province_codes[name] = code
+        count = 0
+        for st in stations:
+            wmo = nz.clean_text(st.get("WmoCode"))
+            if not wmo:
+                continue
+            lat, lon = nz.to_float(st.get("Latitude")), nz.to_float(st.get("Longitude"))
+            province = nz.clean_text(st.get("Province"))
+            station = get_or_create(session, WeatherStation, {"source": SOURCE, "station_code": wmo},
+                                    {"wmo_id": wmo, "first_seen_at": raw.fetched_at})
+            station.name_th = nz.clean_text(st.get("StationNameThai"))
+            station.name_en = nz.clean_text(st.get("StationNameEnglish"))
+            station.province_name = province
+            station.province_code = province_codes.get(province) if province else None
+            station.lat, station.lon = lat, lon
+            station.elevation_m = nz.to_float(st.get("HeightAboveMSL"))
+            if lat is not None and lon is not None:
+                station.geom = f"SRID=4326;POINT({lon} {lat})"
+            station.extra = {"station_id": st.get("StationID"), "station_type": st.get("StationType")}
+            count += 1
+        return count

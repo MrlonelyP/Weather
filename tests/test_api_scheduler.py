@@ -28,7 +28,7 @@ def test_scheduler_registers_each_enabled_job_separately(settings):
     assert {"openmeteo.forecast.ECMWF","tmd.synoptic","rid.dam","thaiwater.waterlevel"} <= job_ids
     assert "tmd.metar" not in job_ids  # disabled by default (P1)
     assert all(j.max_instances == 1 and j.coalesce for j in scheduler.get_jobs())
-    assert len(collectors) == 13  # +2 ThaiWater (waterlevel, rain)
+    assert len(collectors) == 15  # +3 ThaiWater, +1 TMD station metadata
 
 
 def test_health_and_sources(settings):

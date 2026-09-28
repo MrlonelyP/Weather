@@ -98,8 +98,12 @@ class HttpFetcher:
                 self._sleep(delay)
                 continue
             latency_ms = int((time.perf_counter() - started) * 1000)
-            if response.status_code in RETRY_STATUS and attempt <= self.max_retries:
-                delay = self._retry_after(response) or self.backoff_delay(attempt)
+            retry_after = self._retry_after(response)
+            # 429 without Retry-After is usually a daily quota ("try again tomorrow"):
+            # retrying only burns more quota, so hand it back immediately.
+            quota_exhausted = response.status_code == 429 and retry_after is None
+            if response.status_code in RETRY_STATUS and attempt <= self.max_retries and not quota_exhausted:
+                delay = retry_after or self.backoff_delay(attempt)
                 log.warning("GET %s -> HTTP %d; retry %d/%d in %.1fs",
                             url, response.status_code, attempt, self.max_retries, delay)
                 self._sleep(delay)
