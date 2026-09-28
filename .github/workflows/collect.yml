@@ -15,7 +15,7 @@ permissions:
   contents: write   # upload training-data files to a release
 
 env:
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.WEATHER }}  # WEATHER: the name used when the secret was first added
   # keep the database under a free 0.5 GB plan
   RETENTION_RAW_PAYLOAD_DAYS: "1"
   RETENTION_WATER_LEVEL_DAYS: "8"

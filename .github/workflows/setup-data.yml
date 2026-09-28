@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.WEATHER }}  # WEATHER: the name used when the secret was first added
   HYDRO_LEVELS: "5,7,12"
 
 jobs:
