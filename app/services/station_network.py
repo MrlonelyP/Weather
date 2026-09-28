@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -90,8 +90,13 @@ def link_station(session: Session, st: WaterStation) -> dict:
             "osm_waterway_name": osm.name if osm is not None else None,
             "osm_waterway_distance_m": round(osm.d) if osm is not None else None,
             "confidence": confidence,
-            "details": {"river_name_thaiwater": river, "position_along_reach": pos},
+            "details": {"river_name_thaiwater": river, "position_along_reach": pos,
+                        "hydro_rivers_loaded": _rivers_loaded(session)},
             "computed_at": datetime.now(timezone.utc)}
+
+
+def _rivers_loaded(session: Session) -> bool:
+    return bool(session.execute(text("SELECT EXISTS (SELECT 1 FROM hydro_river)")).scalar())
 
 
 def link_all(session: Session) -> dict:
@@ -115,11 +120,15 @@ def link_all(session: Session) -> dict:
 
 def link_missing(session: Session) -> dict:
     """Link river stations that appeared since the last full link (new stations, re-labelled ones)."""
-    linked = select(StationHydroLink.station_id).where(StationHydroLink.method_version == _cfg()["method_version"])
+    # stations never linked, or linked while HydroRIVERS was not loaded yet (they got "none")
+    linked = select(StationHydroLink.station_id).where(
+        StationHydroLink.method_version == _cfg()["method_version"],
+        or_(StationHydroLink.reach_method != "none",
+            StationHydroLink.details["hydro_rivers_loaded"].as_boolean().is_(True)))
     todo = session.execute(select(WaterStation).where(
         WaterStation.source == "thaiwater", WaterStation.station_kind == "river", WaterStation.lat.isnot(None),
         WaterStation.id.not_in(linked))).scalars().all()
-    if not todo or not session.execute(text("SELECT EXISTS (SELECT 1 FROM hydro_river)")).scalar():
+    if not todo or not _rivers_loaded(session):
         return {"linked": 0}
     for st in todo:
         values = link_station(session, st)
