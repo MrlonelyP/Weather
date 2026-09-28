@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import api_v1, health, water, water_api, weather
+from app.api.routes import api_v1, health, location_api, water, water_api, weather
 from app.config.logging import setup_logging
 from app.config.settings import get_settings
 
@@ -44,6 +44,7 @@ if get_settings().cors_origins_list:
     app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins_list, allow_methods=["GET"],
                        allow_headers=["*"])
 app.include_router(water_api.router, tags=["water api"])
+app.include_router(location_api.router, tags=["location api"])
 app.include_router(api_v1.router, tags=["dashboard api"])
 app.include_router(health.router, tags=["health"])
 app.include_router(weather.router, tags=["weather"])

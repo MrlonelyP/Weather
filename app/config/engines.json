@@ -38,5 +38,27 @@
     "watch_distance_m": 0.80,
     "watch_rise_cmh": 3.0,
     "max_obs_age_hours": 3
+  },
+  "terrain": {
+    "_comment": "Terrain engine v0.1. Provisional, descriptive only (no flood weights). Distances in metres. Differences below relative_threshold_m are treated as within DEM noise (30 m DEMs have metre-level vertical error).",
+    "method_version": "terrain-0.1",
+    "radii_m": [250, 500, 1000],
+    "window_margin_m": 150,
+    "relative_threshold_m": 1.0,
+    "low_percentile": 25,
+    "high_percentile": 75,
+    "min_valid_fraction": 0.6,
+    "depression_window_m": 1000,
+    "depression_min_depth_m": 0.5,
+    "depression_cell_depth_m": 0.1,
+    "depression_min_cells": 4,
+    "flat_gradient": 0.002,
+    "plane_fit_radius_m": 250,
+    "dataset_agreement_m": 1.0
+  },
+  "waterway_context": {
+    "_comment": "Nearest OSM waterway search. selection_method is distance_based in v0.1 (no drainage routing).",
+    "search_radius_m": 3000,
+    "max_results": 5
   }
 }

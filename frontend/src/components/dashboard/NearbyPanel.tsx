@@ -4,13 +4,20 @@ import { MapPin, X } from "lucide-react";
 import { EmptyState, LoadingRows } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { LocationAnalysis } from "@/types/location";
 import type { NearbyResponse } from "@/types/water";
 import { fmtDistance, fmtNum } from "@/utils/format";
 import { ImpactBlock } from "./ImpactBlock";
+import { TerrainBlock } from "./TerrainBlock";
 import { TrendCell } from "./TrendCell";
 
 /** Optional: what matters around the user's location. */
-export function NearbyPanel({ data, onSelect, onClose }: { data: NearbyResponse | null; onSelect: (code: string) => void; onClose: () => void }) {
+export function NearbyPanel({ data, analysis, onSelect, onClose }: {
+  data: NearbyResponse | null;
+  analysis: LocationAnalysis | null;
+  onSelect: (code: string) => void;
+  onClose: () => void;
+}) {
   return (
     <Panel title="ใกล้ตำแหน่งของคุณ" icon={MapPin}
       action={<button onClick={onClose} className="rounded p-1 text-muted hover:text-ink" aria-label="ปิด"><X className="size-4" /></button>}>
@@ -38,6 +45,7 @@ export function NearbyPanel({ data, onSelect, onClose }: { data: NearbyResponse 
             <p className="text-[12px] text-ink-2">ฝน 24 ชม. ใกล้เคียง: {data.rain_gauges.slice(0, 3).map((g) => `${g.name} ${fmtNum(g.rain_24h_mm, 1)} มม.`).join(" · ")}</p>
           )}
           <ImpactBlock impact={data.impact} />
+          {analysis && <TerrainBlock data={analysis} />}
         </div>
       )}
     </Panel>

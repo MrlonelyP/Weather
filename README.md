@@ -10,6 +10,7 @@ Water Level Trend และความสัมพันธ์ระหว่�
 - สถาปัตยกรรม ตาราง ความเสี่ยง และลำดับงาน → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - สถานะและสิ่งที่ต้องยืนยันของแต่ละแหล่งข้อมูล → [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)
 - ตาราง/คอลัมน์ที่เตรียมไว้ให้ Flood Engine → [docs/FLOOD_ENGINE_INPUTS.md](docs/FLOOD_ENGINE_INPUTS.md)
+- ภูมิประเทศ (DEM) และทางน้ำ (OSM) → [docs/TERRAIN.md](docs/TERRAIN.md)
 
 ## แหล่งข้อมูลใน Phase 0
 
@@ -52,6 +53,9 @@ python -m app.cli health                                # รายงาน hea
 python -m app.cli backfill-openmeteo --start 2026-09-01 --end 2026-09-27
 python -m app.cli backfill-rid --start 2026-09-01 --end 2026-09-27
 python -m app.cli reprocess --job rid.dam --failed-only # parse ใหม่จาก raw_payload ไม่เรียก API ซ้ำ
+python -m app.cli terrain-download                      # DEM ทั้งประเทศ 2 ชุด (~4.6 GB, ครั้งเดียว)
+python -m app.cli waterways-import                      # ทางน้ำ OSM (ODbL)
+python -m app.cli terrain-precompute                    # ภูมิประเทศของสถานีวัดน้ำ/จุดพยากรณ์
 ```
 
 ## Dashboard (frontend/)
@@ -69,13 +73,15 @@ docker compose up -d --build   # db + migrate + api + scheduler + web (http://lo
 | Derived weather | `app/engines/weather_derived.py` | อุณหภูมิที่รู้สึก (Steadman/BoM), สภาพอากาศ |
 | Water calc | `app/engines/water_calc.py` | ระยะถึงตลิ่ง, อัตราการขึ้น (least squares), แนวโน้ม, สถานะที่ระบบคำนวณ แยกจากค่าที่ต้นทางกำหนด |
 | Water impact | `app/engines/water_impact.py` | ฝนที่คาดการณ์อาจทำให้น้ำขึ้นไหม (เชิงคุณภาพ ไม่มีตัวเลขระดับน้ำในอนาคต) |
+| Terrain | `app/engines/terrain.py` | ความสูง, ต่ำ/สูงกว่ารอบ ๆ (250/500/1000 ม.), ความลาด, แอ่งที่อาจกักน้ำ จาก Copernicus GLO-30 และ FABDEM |
+| Location context | `app/engines/location_context.py` | ข้อความภาษาไทยจากค่าที่คำนวณแล้ว + terrain signal (ข้อมูลประกอบ ไม่มีน้ำหนักคงที่) |
 
 พารามิเตอร์ทั้งหมดอยู่ใน `app/config/engines.json` และเกณฑ์ความสดของข้อมูลรายแหล่งอยู่ใน `app/config/freshness.json`
 
 ## Dashboard API (`/api/*`, อ่านจาก DB เท่านั้น, cache 30 วิ)
 `/api/dashboard/summary` · `/api/sources/health` · `/api/weather/{locations,current,forecast,consensus,stations}` ·
 `/api/rainfall` · `/api/rainfall/{comparison,forecast}` · `/api/water/stations` (filters) · `/api/water/stations/{code}?range=6h|24h|3d|7d` ·
-`/api/water/{filters,nearby,trend}` · `/api/search?q=` · `/api/reservoirs` · `/api/warnings` · `/api/tide` · `/api/flood/{extent,risk}` · `/api/news`
+`/api/water/{filters,nearby,trend}` · `/api/search?q=` · `/api/location/analyze?lat=&lon=` · `/api/terrain` · `/api/terrain/datasets` · `/api/reservoirs` · `/api/warnings` · `/api/tide` · `/api/flood/{extent,risk}` · `/api/news`
 
 ## Internal API (Phase 0)
 | Method | Path | คำอธิบาย |

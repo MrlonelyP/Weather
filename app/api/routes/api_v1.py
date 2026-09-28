@@ -34,6 +34,12 @@ FLOOD_RISK_UNAVAILABLE = {
     "reason": "การประเมินความเสี่ยงน้ำท่วมโดยระบบ (Experimental Flood Risk v0.1) ยังไม่เปิดใช้งาน",
     "disclaimer": "เมื่อเปิดใช้ จะเป็นการประเมินความเสี่ยงโดยระบบ ไม่ใช่ประกาศเตือนภัยทางราชการ",
     "areas": [],
+    # inputs already computed that the engine will explain with (none has a fixed weight)
+    "prepared_signals": [
+        {"name": "water_state", "endpoint": "/api/water/stations", "role": "primary"},
+        {"name": "forecast_impact", "endpoint": "/api/water/stations/{code}", "role": "primary (qualitative)"},
+        {"name": "terrain_signal", "endpoint": "/api/location/analyze", "role": "supporting only, no fixed weight"},
+    ],
 }
 
 

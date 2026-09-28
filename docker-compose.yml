@@ -31,6 +31,8 @@ services:
       DATABASE_URL: postgresql+psycopg://flood:flood@db:5432/flood_intel
     ports:
       - "8000:8000"
+    volumes:
+      - terrain:/app/data  # DEM tiles + OSM extract (static, ~4.6 GB for Thailand)
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -42,6 +44,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://flood:flood@db:5432/flood_intel
     command: python -m app.scheduler
+    volumes:
+      - terrain:/app/data
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -60,3 +64,4 @@ services:
 
 volumes:
   pgdata:
+  terrain:

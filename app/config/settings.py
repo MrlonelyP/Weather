@@ -155,9 +155,24 @@ class Settings(BaseSettings):
     thaiwater_history_poll_minutes: int = 360
     thaiwater_history_hours: int = 24  # scheduled refresh window; CLI backfill can go up to 7 days
 
+    # --- Terrain / DEM (static data, see app/config/terrain.json) ------------
+    # GeoTIFF tiles live here as files (not in PostGIS); keep it on a persistent volume
+    dem_data_dir: str = "data/dem"
+    # datasets to download/use; both are 1 arc-second (~30 m)
+    terrain_datasets: str = "copernicus_glo30,fabdem_v1_2"
+    # dataset whose result is shown first. fabdem_v1_2 is bare-earth (better in towns) but
+    # CC BY-NC-SA (non-commercial only); set copernicus_glo30 for a commercial deployment.
+    terrain_primary_dataset: str = "fabdem_v1_2"
+    terrain_download_workers: int = 4
+    terrain_download_timeout_seconds: float = 600.0
+
     @property
     def thaiwater_history_provinces_list(self) -> list[str]:
         return [p.strip() for p in self.thaiwater_history_provinces.split(",") if p.strip()]
+
+    @property
+    def terrain_dataset_list(self) -> list[str]:
+        return [d.strip() for d in self.terrain_datasets.split(",") if d.strip()]
 
     @property
     def openmeteo_hourly_list(self) -> list[str]:

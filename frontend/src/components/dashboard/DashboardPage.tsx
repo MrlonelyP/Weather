@@ -13,6 +13,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { usePolling } from "@/hooks/usePolling";
 import { dashboardService } from "@/services/dashboard";
 import { floodService } from "@/services/flood";
+import { locationService } from "@/services/location";
 import { newsService } from "@/services/news";
 import { warningService } from "@/services/warning";
 import { waterService } from "@/services/water";
@@ -79,6 +80,9 @@ export function DashboardPage() {
   const userNearby = usePolling(
     (s) => (geo.position ? waterService.nearby(geo.position.lat, geo.position.lon, 10, s) : Promise.resolve(null)),
     [geo.position?.lat, geo.position?.lon], geo.position ? REFRESH_MS : null);
+  const userAnalysis = usePolling(
+    (s) => (geo.position ? locationService.analyze(geo.position.lat, geo.position.lon, s) : Promise.resolve(null)),
+    [geo.position?.lat, geo.position?.lon], geo.position ? SLOW : null);
 
   // --- interactions ---------------------------------------------------------
   const fly = useCallback((t: Omit<FlyTarget, "key">) => setFlyTo({ ...t, key: Date.now() }), []);
@@ -156,7 +160,7 @@ export function DashboardPage() {
               </WeatherMap>
             </div>
             <div className="flex min-w-0 flex-col gap-4">
-              {geo.position && <NearbyPanel data={userNearby.data} onSelect={selectStation} onClose={geo.clear} />}
+              {geo.position && <NearbyPanel data={userNearby.data} analysis={userAnalysis.data} onSelect={selectStation} onClose={geo.clear} />}
               <WatchListPanel data={water.data} onSelect={selectStation} />
               <div id="alerts"><AlertPanel data={warnings.data} /></div>
             </div>

@@ -1,0 +1,53 @@
+{
+  "_comment": "Terrain / elevation sources. Metadata only - no elevation values live here. Tiles are 1x1 degree, named by their south-west corner.",
+  "datasets": {
+    "copernicus_glo30": {
+      "name": "Copernicus DEM GLO-30",
+      "version": "public AWS COG release (per-tile metadata recorded at download)",
+      "provider": "European Space Agency / DLR / Airbus (Copernicus programme)",
+      "resolution_arcsec": 1,
+      "resolution_m_approx": 30,
+      "surface": "DSM",
+      "surface_note_th": "เป็นความสูงของผิวบนสุด (DSM) รวมอาคารและต้นไม้ ในเขตเมืองและป่าค่าที่ได้อาจสูงกว่าพื้นดินจริง",
+      "vertical_datum": "EGM2008",
+      "horizontal_crs": "EPSG:4326",
+      "license": "Copernicus DEM licence (free, worldwide, commercial use allowed with attribution)",
+      "commercial_use": true,
+      "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
+      "access": "direct",
+      "url_template": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_{lat_tag}_00_{lon_tag}_00_DEM/Copernicus_DSM_COG_10_{lat_tag}_00_{lon_tag}_00_DEM.tif",
+      "info_url": "https://registry.opendata.aws/copernicus-dem/"
+    },
+    "fabdem_v1_2": {
+      "name": "FABDEM V1-2",
+      "version": "1-2",
+      "provider": "University of Bristol (Hawker et al. 2022), derived from Copernicus GLO-30",
+      "resolution_arcsec": 1,
+      "resolution_m_approx": 30,
+      "surface": "DTM",
+      "surface_note_th": "ลบอาคารและต้นไม้ออกด้วยการประมวลผลทางสถิติ (bare-earth) ใกล้เคียงระดับพื้นดินมากกว่า DSM แต่ยังมีความคลาดเคลื่อน",
+      "vertical_datum": "EGM2008",
+      "horizontal_crs": "EPSG:4326",
+      "license": "CC BY-NC-SA 4.0",
+      "commercial_use": false,
+      "attribution": "FABDEM V1-2, Hawker, L. et al. (2022), University of Bristol, CC BY-NC-SA 4.0, https://doi.org/10.5523/bris.s5hqmjcdj8yo2ibzi9b4ew3sn",
+      "access": "zip_member",
+      "zip_url_template": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/{zip_group}_FABDEM_V1-2.zip",
+      "member_template": "{lat_tag}{lon_tag}_FABDEM_V1-2.tif",
+      "info_url": "https://data.bris.ac.uk/data/dataset/s5hqmjcdj8yo2ibzi9b4ew3sn"
+    }
+  },
+  "coverage": {
+    "boundary_file": "thailand_boundary.geojson",
+    "boundary_buffer_deg": 0.02
+  },
+  "waterways": {
+    "source": "osm_hotosm_hdx",
+    "name": "OpenStreetMap waterways (lines), HOT Export via HDX",
+    "license": "ODbL 1.0",
+    "attribution": "© OpenStreetMap contributors (ODbL)",
+    "url": "https://s3.dualstack.us-east-1.amazonaws.com/production-raw-data-api/ISO3/THA/waterways/lines/hotosm_tha_waterways_lines_geojson.zip",
+    "info_url": "https://data.humdata.org/dataset/hotosm_tha_waterways",
+    "types": ["river", "canal", "stream", "drain", "ditch", "tidal_channel"]
+  }
+}

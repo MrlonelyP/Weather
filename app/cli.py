@@ -7,6 +7,10 @@
     python -m app.cli backfill-rid --start 2026-09-01 --end 2026-09-27 [--medium]
     python -m app.cli reprocess --job tmd.synoptic [--since 2026-09-01] [--failed-only]
     python -m app.cli health                       # source health report
+    python -m app.cli terrain-download [--dataset copernicus_glo30] [--tile N13E100]
+    python -m app.cli terrain-status               # DEM tiles on disk / at source
+    python -m app.cli waterways-import [--refresh]  # OSM waterways (HOT export, ODbL) into PostGIS
+    python -m app.cli terrain-precompute            # terrain attributes for stations / forecast points
 """
 from __future__ import annotations
 
@@ -147,6 +151,61 @@ def cmd_health(_args) -> int:
     return 0
 
 
+def _parse_tile(t: str) -> tuple[int, int]:
+    lat = int(t[1:3]) * (1 if t[0] == "N" else -1)
+    lon = int(t[4:7]) * (1 if t[3] == "E" else -1)
+    return lat, lon
+
+
+def cmd_terrain_download(args) -> int:
+    from app.services.database import session_scope
+    from app.services.dem_download import download_dataset
+
+    settings = get_settings()
+    datasets = [args.dataset] if args.dataset else settings.terrain_dataset_list
+    tiles = [_parse_tile(t) for t in args.tile] if args.tile else None
+    failed = 0
+    for ds in datasets:
+        with session_scope() as session:
+            result = download_dataset(session, ds, settings, tiles=tiles)
+        print(result)
+        failed += result.get("failed", 0)
+    return 1 if failed else 0
+
+
+def cmd_terrain_status(_args) -> int:
+    from sqlalchemy import func
+
+    from app.models import DemTile
+    from app.services.database import session_scope
+
+    with session_scope() as session:
+        rows = session.execute(select(DemTile.dataset, DemTile.status, func.count(), func.sum(DemTile.bytes))
+                               .group_by(DemTile.dataset, DemTile.status).order_by(DemTile.dataset)).all()
+    for ds, status, n, size in rows:
+        print(f"{ds:18} {status:14} {n:4} tiles {float(size or 0) / 1e9:7.2f} GB")
+    return 0
+
+
+def cmd_waterways_import(args) -> int:
+    from app.services.database import session_scope
+    from app.services.waterways import download_extract, import_extract
+
+    path = download_extract(get_settings(), force=args.refresh)
+    with session_scope() as session:
+        print(import_extract(session, path))
+    return 0
+
+
+def cmd_terrain_precompute(_args) -> int:
+    from app.services.database import session_scope
+    from app.services.terrain_data import precompute
+
+    with session_scope() as session:
+        print(precompute(session))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     setup_logging(get_settings().log_level)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -171,6 +230,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--failed-only", action="store_true")
     p.set_defaults(func=cmd_reprocess)
     sub.add_parser("health").set_defaults(func=cmd_health)
+    p = sub.add_parser("terrain-download")
+    p.add_argument("--dataset")
+    p.add_argument("--tile", action="append", help="e.g. N13E100 (repeatable); default: all tiles covering Thailand")
+    p.set_defaults(func=cmd_terrain_download)
+    sub.add_parser("terrain-status").set_defaults(func=cmd_terrain_status)
+    sub.add_parser("terrain-precompute").set_defaults(func=cmd_terrain_precompute)
+    p = sub.add_parser("waterways-import")
+    p.add_argument("--refresh", action="store_true", help="download the extract again")
+    p.set_defaults(func=cmd_waterways_import)
     args = parser.parse_args(argv)
     return args.func(args)
 
