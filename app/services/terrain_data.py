@@ -26,6 +26,7 @@ _CACHE: OrderedDict[tuple, dict] = OrderedDict()
 _CACHE_MAX = 2048
 _LOCK = threading.Lock()
 
+NO_DEM_INSTALLED = "เซิร์ฟเวอร์นี้ไม่ได้ติดตั้งไฟล์ DEM (เช่น เวอร์ชันฟรี) จึงวิเคราะห์ภูมิประเทศรายจุดไม่ได้"
 LIMITS_TH = [
     "DEM ความละเอียด 30 ม. มีความคลาดเคลื่อนแนวดิ่งระดับเมตร พื้นที่ราบอย่างกรุงเทพฯ ความต่างที่น้อยกว่า ~1 ม. อาจเป็นเพียงความคลาดเคลื่อน",
     "Copernicus GLO-30 เป็น DSM (รวมความสูงอาคาร/ต้นไม้) ในเขตเมืองและป่าค่าพื้นอาจสูงกว่าจริงและเกิดแอ่งเทียมระหว่างอาคาร",
@@ -47,7 +48,10 @@ def _window_half_m(p: dict) -> float:
 
 def analyze_dataset(dataset: str, lat: float, lon: float) -> dict:
     p = params()
-    w = DemReader(dataset).read(lat, lon, _window_half_m(p))
+    reader = DemReader(dataset)
+    if not reader.root.is_dir():
+        return {"available": False, "dataset": dataset_meta(dataset), "reason": NO_DEM_INSTALLED}
+    w = reader.read(lat, lon, _window_half_m(p))
     if w is None:
         return {"available": False, "dataset": dataset_meta(dataset),
                 "reason": "ไม่มี DEM tile ของชุดข้อมูลนี้ที่ตำแหน่งนี้ (นอกพื้นที่ที่ดาวน์โหลด หรือเป็นทะเล)"}

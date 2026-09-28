@@ -1,0 +1,17 @@
+# Render Blueprint for the API (free plan). The dashboard runs on Vercel, data collection on GitHub Actions.
+# docs/DEPLOY_FREE.md step 4.
+services:
+  - type: web
+    name: thai-flood-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # paste the Neon connection string when Render asks
+      - key: RUN_SCHEDULER_IN_API
+        value: "false"       # collection runs on GitHub Actions
+      - key: HYDRO_LEVELS
+        value: "5,7,12"

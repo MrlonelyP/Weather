@@ -27,6 +27,9 @@ Water Level Trend และความสัมพันธ์ระหว่�
 
 ## เริ่มใช้งาน
 
+### แบบฟรีบนคลาวด์ (Neon + GitHub Actions + Render + Vercel)
+ดูขั้นตอนทีละข้อที่ [docs/DEPLOY_FREE.md](docs/DEPLOY_FREE.md)
+
 ### แบบ Docker
 ```bash
 cp .env.example .env          # ใส่ GISTDA_API_KEY ถ้ามี

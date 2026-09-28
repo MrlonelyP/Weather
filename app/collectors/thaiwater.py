@@ -73,6 +73,7 @@ def _station_fields(item: dict, kind: str) -> tuple[str, dict] | None:
 class _ThaiWaterBase(BaseCollector):
     source = SOURCE
     schema_verified = False
+    measure = "water_level"
     station_kind = "river"
 
     @property
@@ -104,9 +105,17 @@ class _ThaiWaterBase(BaseCollector):
             cache[code] = station
         elif getattr(station, "_refreshed", False):
             return station.id
+        # ThaiWater telemetry stations often report BOTH water level and rain under one station id.
+        # The station stays "river" once it reports a level (a rain payload must not downgrade it),
+        # and extra["measures"] records every quantity it reports.
+        measures = sorted(set((station.extra or {}).get("measures", [])) | {self.measure})
         for key, value in defaults.items():
             if key == "extra":
-                station.extra = {**(station.extra or {}), **{k: v for k, v in value.items() if v is not None}}
+                station.extra = {**(station.extra or {}), **{k: v for k, v in value.items() if v is not None},
+                                 "measures": measures}
+            elif key == "station_kind":
+                if station.station_kind is None or value == "river":
+                    station.station_kind = value
             elif value is not None:
                 setattr(station, key, value)
         if station.lat is not None and station.lon is not None:
@@ -189,6 +198,7 @@ class ThaiWaterRainCollector(_ThaiWaterBase):
     job = "thaiwater.rain"
     dataset_prefixes = ("rain24h",)
     station_kind = "rain_gauge"
+    measure = "rain"
 
     def configuration_status(self) -> str | None:
         if not (self.settings.thaiwater_enabled and self.settings.thaiwater_rain_enabled):

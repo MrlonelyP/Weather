@@ -12,7 +12,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 from geoalchemy2 import Geography
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Location, WaterLevelObservation, WaterStation, WeatherObservation, WeatherStation
@@ -36,7 +36,8 @@ def gauge_windows(session: Session, window: str, now: datetime | None = None) ->
                WaterStation.lon, WaterStation.province_code, WaterStation.extra,
                WaterLevelObservation.observed_at, WaterLevelObservation.rain_mm, WaterLevelObservation.rain_1h_mm)
         .join(WaterLevelObservation, WaterLevelObservation.station_id == WaterStation.id)
-        .where(WaterStation.source == "thaiwater", WaterStation.station_kind == "rain_gauge",
+        .where(WaterStation.source == "thaiwater",
+               or_(WaterLevelObservation.rain_mm.isnot(None), WaterLevelObservation.rain_1h_mm.isnot(None)),
                WaterLevelObservation.observed_at >= since, WaterLevelObservation.observed_at <= now)
         .order_by(WaterStation.id, WaterLevelObservation.observed_at)).all()
     per_station: dict[int, list] = defaultdict(list)
@@ -106,7 +107,7 @@ def observed_hourly_near(session: Session, location: Location, hours: int, radiu
     rows = session.execute(
         select(WaterLevelObservation.observed_at, WaterLevelObservation.rain_1h_mm, WaterStation.id)
         .join(WaterStation, WaterStation.id == WaterLevelObservation.station_id)
-        .where(WaterStation.source == "thaiwater", WaterStation.station_kind == "rain_gauge",
+        .where(WaterStation.source == "thaiwater",
                WaterLevelObservation.rain_1h_mm.isnot(None),
                WaterLevelObservation.observed_at >= now - timedelta(hours=hours),
                func.ST_DWithin(cast(WaterStation.geom, Geography), cast(point, Geography), radius_km * 1000))

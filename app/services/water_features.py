@@ -127,9 +127,17 @@ def source_versions() -> dict:
 
 
 def snapshot(session: Session, as_of: datetime | None = None, with_forecast: bool = True) -> dict:
+    from app.config.settings import get_settings
+
+    settings = get_settings()
     as_of = (as_of or utcnow()).replace(minute=0, second=0, microsecond=0)
-    stations = session.execute(select(WaterStation).where(
-        WaterStation.source == "thaiwater", WaterStation.station_kind == "river")).scalars().all()
+    q = select(WaterStation).where(WaterStation.source == "thaiwater", WaterStation.station_kind == "river")
+    if settings.features_station_scope == "key":
+        q = q.where(WaterStation.extra["is_key_station"].as_boolean().is_(True))
+    elif settings.features_station_scope == "provinces":
+        q = q.where(WaterStation.province_code.in_(settings.thaiwater_history_provinces_list))
+    stations = session.execute(q).scalars().all()
+    horizons = settings.features_horizons_list or _cfg()["horizons_hours"]
     rain_windows = catchment_rain.observed_windows(session, as_of)
     versions = source_versions()
     rows, skipped = 0, 0
@@ -138,7 +146,7 @@ def snapshot(session: Session, as_of: datetime | None = None, with_forecast: boo
         if f is None:
             skipped += 1
             continue
-        for h in _cfg()["horizons_hours"]:
+        for h in horizons:
             stmt = insert(WaterForecastTraining).values(
                 station_id=st.id, prediction_time=as_of, horizon_hours=h, target_time=as_of + timedelta(hours=h),
                 feature_version=versions["feature_version"], current_level_m=f["water"]["current_water_level_m"],

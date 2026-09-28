@@ -71,7 +71,7 @@ def _rain24_summary(db: Session) -> dict:
         prev_max = db.execute(
             select(func.max(WaterLevelObservation.rain_mm))
             .join(WaterStation, WaterStation.id == WaterLevelObservation.station_id)
-            .where(WaterStation.station_kind == "rain_gauge",
+            .where(WaterLevelObservation.rain_mm.isnot(None),
                    WaterLevelObservation.observed_at.between(ref - timedelta(minutes=45),
                                                              ref + timedelta(minutes=45)))).scalar_one()
     return {

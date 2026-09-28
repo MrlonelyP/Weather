@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -53,6 +53,22 @@ class Settings(BaseSettings):
     # comma separated origins allowed to call the API from a browser (e.g. the Next.js dev server).
     # Not needed when the frontend proxies /api through its own server.
     cors_origins: str = ""
+
+    @field_validator("database_url")
+    @classmethod
+    def _sqlalchemy_driver(cls, v: str) -> str:
+        """Accept the plain URLs cloud databases hand out (postgres:// or postgresql://)."""
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
+    @field_validator("retention_raw_payload_days", "retention_water_level_days", "retention_rain_gauge_days",
+                     "retention_forecast_days", "retention_observation_days", "retention_log_days",
+                     "retention_training_days", mode="before")
+    @classmethod
+    def _empty_is_none(cls, v):
+        return None if isinstance(v, str) and not v.strip() else v
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -167,8 +183,30 @@ class Settings(BaseSettings):
     # hourly water-forecast feature snapshot + labelling (water_forecast_training); no model is trained
     features_snapshot_enabled: bool = True
     features_snapshot_minute: int = 25
+    # which rivers stations get a snapshot: all | key (ThaiWater key stations) | provinces (thaiwater_history_provinces)
+    features_station_scope: str = "all"
+    features_horizons: str = ""  # e.g. "1,3,6"; empty = engines.json features.horizons_hours
     terrain_download_workers: int = 4
     terrain_download_timeout_seconds: float = 600.0
+
+    # --- Retention (free / small databases, see docs/DEPLOY_FREE.md). Empty = keep forever ------
+    retention_raw_payload_days: int | None = None
+    retention_water_level_days: int | None = None
+    retention_rain_gauge_days: int | None = None
+    retention_forecast_days: int | None = None
+    retention_observation_days: int | None = None
+    retention_log_days: int | None = None
+    retention_training_days: int | None = None
+    # HydroBASINS levels to import; empty = app/config/hydro.json
+    hydro_levels: str = ""
+
+    @property
+    def features_horizons_list(self) -> list[int]:
+        return [int(h) for h in self.features_horizons.split(",") if h.strip()]
+
+    @property
+    def hydro_levels_list(self) -> list[int]:
+        return [int(h) for h in self.hydro_levels.split(",") if h.strip()]
 
     @property
     def thaiwater_history_provinces_list(self) -> list[str]:

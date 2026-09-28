@@ -16,6 +16,10 @@
     python -m app.cli features-snapshot [--as-of 2026-09-28T05:00] [--no-forecast]
     python -m app.cli features-backfill --hours 48  # past hours from stored observations (as-of, no look-ahead)
     python -m app.cli features-label                # fill actual levels for rows whose target time has passed
+    python -m app.cli run-due                       # one pass of every due job (cron / GitHub Actions)
+    python -m app.cli prune                         # apply RETENTION_* settings
+    python -m app.cli features-export --before 2026-09-28T00:00 --out training.jsonl.gz
+    python -m app.cli features-delete --before 2026-09-28T00:00   # after the export is stored safely
 """
 from __future__ import annotations
 
@@ -215,12 +219,15 @@ def cmd_hydro_import(args) -> int:
     from app.services import hydro_import
     from app.services.database import session_scope
 
+    datasets = ["hydrobasins_v1c", "hydrorivers_v10"] + ([] if args.no_rasters else
+                                                       ["hydrosheds_dir_15s", "hydrosheds_acc_15s"])
     with session_scope() as session:
         if not args.skip_download:
-            print("download", hydro_import.download(session))
+            print("download", hydro_import.download(session, datasets))
         print("basins", hydro_import.import_basins(session))
         print("rivers", hydro_import.import_rivers(session))
-    print("rasters", hydro_import.clip_rasters())
+    if not args.no_rasters:
+        print("rasters", hydro_import.clip_rasters())
     return 0
 
 
@@ -276,6 +283,50 @@ def cmd_features_label(_args) -> int:
     return 0
 
 
+def cmd_run_due(_args) -> int:
+    import json
+
+    from app.services.maintenance import run_due
+
+    report = run_due()
+    print(json.dumps(report, ensure_ascii=False, default=str, indent=1))
+    return 0
+
+
+def cmd_prune(_args) -> int:
+    from app.services.database import session_scope
+    from app.services.maintenance import prune
+
+    with session_scope() as session:
+        print(prune(session))
+    return 0
+
+
+def cmd_features_export(args) -> int:
+    from app.services.database import session_scope
+    from app.services.maintenance import export_training
+
+    before = _as_of(args.before)
+    with session_scope() as session:
+        n = export_training(session, Path(args.out), before)
+    print({"exported": n, "file": args.out, "before": before.isoformat()})
+    return 0
+
+
+def cmd_features_delete(args) -> int:
+    from sqlalchemy import delete
+
+    from app.models import WaterForecastTraining
+    from app.services.database import session_scope
+
+    before = _as_of(args.before)
+    with session_scope() as session:
+        n = session.execute(delete(WaterForecastTraining).where(WaterForecastTraining.prediction_time < before)).rowcount
+        session.commit()
+    print({"deleted": n, "before": before.isoformat()})
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     setup_logging(get_settings().log_level)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -316,8 +367,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-forecast", action="store_true")
     p.set_defaults(func=cmd_features_backfill)
     sub.add_parser("features-label").set_defaults(func=cmd_features_label)
+    sub.add_parser("run-due").set_defaults(func=cmd_run_due)
+    sub.add_parser("prune").set_defaults(func=cmd_prune)
+    p = sub.add_parser("features-export")
+    p.add_argument("--before", required=True, help="export rows with prediction_time before this UTC time")
+    p.add_argument("--out", required=True)
+    p.set_defaults(func=cmd_features_export)
+    p = sub.add_parser("features-delete")
+    p.add_argument("--before", required=True, help="delete rows with prediction_time before this UTC time")
+    p.set_defaults(func=cmd_features_delete)
     p = sub.add_parser("hydro-import")
     p.add_argument("--skip-download", action="store_true")
+    p.add_argument("--no-rasters", action="store_true", help="skip the 15\" rasters (hosts without a data disk)")
     p.set_defaults(func=cmd_hydro_import)
     p = sub.add_parser("waterways-import")
     p.add_argument("--refresh", action="store_true", help="download the extract again")

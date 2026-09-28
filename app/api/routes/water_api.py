@@ -174,7 +174,8 @@ def search(q: str = Query(..., min_length=2, max_length=80), db: Session = Depen
         pts = [(s.lat, s.lon) for s in sts if s.lat is not None]
         areas.append({"type": kind, "name": name, "province": prov,
                       "water_stations": sum(1 for s in sts if s.station_kind == "river"),
-                      "rain_gauges": sum(1 for s in sts if s.station_kind == "rain_gauge"),
+                      "rain_gauges": sum(1 for s in sts if s.station_kind == "rain_gauge"
+                                         or "rain" in (s.extra or {}).get("measures", [])),
                       "center": {"lat": sum(p[0] for p in pts) / len(pts), "lon": sum(p[1] for p in pts) / len(pts)}
                       if pts else None,
                       "bbox": [min(p[1] for p in pts), min(p[0] for p in pts), max(p[1] for p in pts),

@@ -35,11 +35,15 @@ def hydro_dir(settings: Settings) -> Path:
     return Path(settings.dem_data_dir).parent / "hydro"
 
 
+def basin_levels() -> list[int]:
+    return get_settings().hydro_levels_list or hydro_config()["sources"]["hydrobasins_v1c"]["levels"]
+
+
 def _members(dataset: str) -> list[str]:
     src = hydro_config()["sources"][dataset]
     tpl = src["members"]
     if dataset == "hydrobasins_v1c":
-        return [tpl.format(level=lv, ext=e) for lv in src["levels"] for e in SHP_EXT]
+        return [tpl.format(level=lv, ext=e) for lv in basin_levels() for e in SHP_EXT]
     if "{ext}" in tpl:
         return [tpl.format(ext=e) for e in SHP_EXT]
     return [tpl]
@@ -102,7 +106,7 @@ def import_basins(session: Session, settings: Settings | None = None, batch: int
     settings = settings or get_settings()
     bbox = hydro_config()["region_bbox"]
     counts = {}
-    for level in hydro_config()["sources"]["hydrobasins_v1c"]["levels"]:
+    for level in basin_levels():
         path = hydro_dir(settings) / "raw" / "hydrobasins_v1c" / f"hybas_as_lev{level:02d}_v1c.shp"
         rows = []
         with shapefile.Reader(str(path)) as r:

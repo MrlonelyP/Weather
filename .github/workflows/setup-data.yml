@@ -1,0 +1,49 @@
+# One-time (or occasional) setup of the static data for the free deployment.
+# Run it by hand: Actions -> setup-data -> Run workflow. Takes about 20-40 minutes.
+name: setup-data
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  HYDRO_LEVELS: "5,7,12"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check database secret
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Add the repository secret DATABASE_URL first (docs/DEPLOY_FREE.md step 2)"; exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Create tables
+        run: python -m app.cli init-db
+      - name: Water and rain stations
+        run: |
+          python -m app.cli collect thaiwater.waterlevel || true
+          python -m app.cli collect thaiwater.rain || true
+      - name: OSM waterways (ODbL)
+        run: python -m app.cli waterways-import
+      - name: HydroSHEDS basins and rivers (levels 5, 7, 12; no rasters)
+        run: python -m app.cli hydro-import --no-rasters
+      - name: Copernicus DEM for Thailand (kept only on this runner) and station terrain
+        run: |
+          python -m app.cli terrain-download --dataset copernicus_glo30
+          python -m app.cli terrain-precompute
+      - name: Link stations to rivers
+        run: python -m app.cli hydro-link
+      - name: First collection
+        run: python -m app.cli run-due

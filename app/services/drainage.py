@@ -26,6 +26,7 @@ from app.engines.terrain import COMPASS_TH
 from app.services.dem_download import dataset_info
 from app.services.dem_reader import DemReader
 from app.services.hydro_import import hydro_config, hydro_dir
+from app.services.terrain_data import NO_DEM_INSTALLED
 from app.services.waterways import TYPE_TH
 
 _CACHE: OrderedDict[tuple, dict] = OrderedDict()
@@ -77,11 +78,12 @@ def local_flow(session: Session, lat: float, lon: float) -> dict:
     ds = settings.terrain_primary_dataset
     p = engine_config()["flow"]
     reader = DemReader(ds)
-    w = reader.read(lat, lon, p["window_half_m"])
+    w = reader.read(lat, lon, p["window_half_m"]) if reader.root.is_dir() else None
     base = {"source": f"{dataset_info(ds)['name']} + OpenStreetMap waterways", "dataset": ds,
             "method_version": p["method_version"], "limitations": LIMITS_TH}
     if w is None:
-        return {**base, "available": False, "reason": "ไม่มี DEM ที่ตำแหน่งนี้", "confidence": 0.0}
+        reason = "ไม่มี DEM ที่ตำแหน่งนี้" if reader.root.is_dir() else NO_DEM_INSTALLED
+        return {**base, "available": False, "reason": reason, "message_th": reason, "confidence": 0.0}
     labels, meta = waterway_grid(session, w, reader.res)
     out = analyze_flow(w.grid, w.row, w.col, w.dx_m, w.dy_m, labels, p["dem_noise_m"].get(ds, 1.5), p)
     if not out.get("available"):

@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
  * requests to the FastAPI backend, so no external weather API (and no API key)
  * is ever reachable from the frontend.
  */
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const BACKEND_URL = (process.env.BACKEND_URL ?? "http://localhost:8000").trim().replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

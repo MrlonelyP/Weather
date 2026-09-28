@@ -48,11 +48,12 @@ def _data_time(session: Session, job: str) -> datetime | None:
         return session.execute(select(func.max(WeatherObservation.observed_at))
                                .where(WeatherObservation.source == "tmd")).scalar_one()
     if job in ("thaiwater.waterlevel", "thaiwater.rain"):
-        kind = "river" if job.endswith("waterlevel") else "rain_gauge"
+        value = (WaterLevelObservation.water_level_m if job.endswith("waterlevel")
+                 else WaterLevelObservation.rain_mm)
         return session.execute(
             select(func.max(WaterLevelObservation.observed_at))
             .join(WaterStation, WaterStation.id == WaterLevelObservation.station_id)
-            .where(WaterStation.source == "thaiwater", WaterStation.station_kind == kind)).scalar_one()
+            .where(WaterStation.source == "thaiwater", value.isnot(None))).scalar_one()
     if job.startswith("rid."):
         d = session.execute(select(func.max(ReservoirStatus.observed_date))
                             .where(ReservoirStatus.source == "rid")).scalar_one()

@@ -113,6 +113,24 @@ def link_all(session: Session) -> dict:
     return counts
 
 
+def link_missing(session: Session) -> dict:
+    """Link river stations that appeared since the last full link (new stations, re-labelled ones)."""
+    linked = select(StationHydroLink.station_id).where(StationHydroLink.method_version == _cfg()["method_version"])
+    todo = session.execute(select(WaterStation).where(
+        WaterStation.source == "thaiwater", WaterStation.station_kind == "river", WaterStation.lat.isnot(None),
+        WaterStation.id.not_in(linked))).scalars().all()
+    if not todo or not session.execute(text("SELECT EXISTS (SELECT 1 FROM hydro_river)")).scalar():
+        return {"linked": 0}
+    for st in todo:
+        values = link_station(session, st)
+        stmt = insert(StationHydroLink).values(**values)
+        stmt = stmt.on_conflict_do_update(constraint="uq_station_hydro_link_station",
+                                          set_={k: stmt.excluded[k] for k in values if k not in ("station_id", "method_version")})
+        session.execute(stmt)
+    session.commit()
+    return {"linked": len(todo), **build_relations(session)}
+
+
 def build_relations(session: Session) -> dict:
     cfg = _cfg()
     reaches = {r.hyriv_id: (r.next_down, r.length_km) for r in session.execute(

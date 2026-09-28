@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.engines import engine_config
 from app.engines.water_calc import STATUS_RANK, station_state
 from app.models import WaterLevelObservation, WaterStation
+from app.models.water import reports_rain
 from app.services.normalizer import utcnow
 
 
@@ -234,15 +235,16 @@ def nearest_stations(session: Session, lat: float, lon: float, radius_km: float,
                      limit: int = 10) -> list[tuple[WaterStation, float]]:
     point = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
     dist = func.ST_Distance(cast(WaterStation.geom, Geography), cast(point, Geography))
+    kind_filter = reports_rain() if kind == "rain_gauge" else WaterStation.station_kind == kind
     return list(session.execute(
-        select(WaterStation, dist).where(WaterStation.source == "thaiwater", WaterStation.station_kind == kind,
+        select(WaterStation, dist).where(WaterStation.source == "thaiwater", kind_filter,
                                          func.ST_DWithin(cast(WaterStation.geom, Geography),
                                                          cast(point, Geography), radius_km * 1000))
         .order_by(dist).limit(limit)).all())
 
 
 def observed_rain_24h_max(session: Session, lat: float, lon: float, radius_km: float = 10) -> float | None:
-    ids = [st.id for st, _ in nearest_stations(session, lat, lon, radius_km, "rain_gauge", 50)]
+    ids = [st.id for st, _ in nearest_stations(session, lat, lon, radius_km, "rain_gauge", 80)]
     if not ids:
         return None
     return session.execute(select(func.max(WaterLevelObservation.rain_mm))

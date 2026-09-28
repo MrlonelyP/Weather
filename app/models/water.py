@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from geoalchemy2 import Geometry
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint, or_
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,14 @@ class WaterStation(Base):
     extra: Mapped[dict | None] = mapped_column(JSONB)
 
     __table_args__ = (UniqueConstraint("source", "station_code", name="uq_water_station_source_code"),)
+
+
+def reports_rain():
+    """SQL condition: the station reports rain (a rain gauge, or a river station that also has a rain sensor)."""
+    return or_(WaterStation.station_kind == "rain_gauge", WaterStation.extra.contains({"measures": ["rain"]}))
+
+
+REPORTS_RAIN_SQL = "(ws.station_kind = 'rain_gauge' OR ws.extra @> '{\"measures\": [\"rain\"]}')"
 
 
 class WaterLevelObservation(ProvenanceMixin, Base):

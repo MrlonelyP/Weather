@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models import Location
+from app.models.water import REPORTS_RAIN_SQL
 from app.services.forecast_data import consensus_for_location
 from app.services.normalizer import utcnow
 from app.services.rainfall import gauge_windows
@@ -38,7 +39,7 @@ def _unit_maps(session: Session) -> dict:
         _UNITS["gauge"] = dict(session.execute(text("""
             SELECT ws.id, b.hybas_id FROM water_station ws JOIN hydro_basin b
               ON b.level = 12 AND ST_Contains(b.geom, ws.geom)
-            WHERE ws.source = 'thaiwater' AND ws.station_kind = 'rain_gauge'""")).all())
+            WHERE ws.source = 'thaiwater' AND """ + REPORTS_RAIN_SQL)).all())
         _UNITS["area"] = dict(session.execute(text("SELECT hybas_id, sub_area_km2 FROM hydro_basin WHERE level = 12")).all())
         _UNITS["points"] = dict(session.execute(text("""
             SELECT l.id, b.hybas_id FROM location l JOIN hydro_basin b ON b.level = 12 AND ST_Contains(b.geom, l.geom)
