@@ -15,6 +15,8 @@
 ## ขั้นตอน
 1. **Neon:** สมัครที่ neon.tech แล้วสร้างโปรเจกต์ (เลือก region ใกล้ไทย เช่น Singapore)
    กด **Connect** แล้วคัดลอก connection string ที่ขึ้นต้นด้วย `postgresql://` และมี `sslmode=require`
+   - ใช้ได้ทั้งแบบ pooled (`-pooler`) และแบบ direct ระบบจะเปลี่ยนเป็นแบบ direct ให้เอง เพราะแบบ pooled (transaction mode) ไม่เก็บค่า session เช่น time zone
+   - ถ้ารหัสนี้เคยถูกส่งในแชทหรือที่สาธารณะ ให้รีเซ็ตรหัสผ่านก่อน: **Roles → neondb_owner → Reset password**
 2. **GitHub:** ไปที่ repo → **Settings → Secrets and variables → Actions → New repository secret**
    - Name: `DATABASE_URL`
    - Secret: วาง connection string จากข้อ 1

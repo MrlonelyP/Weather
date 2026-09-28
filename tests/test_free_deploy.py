@@ -89,3 +89,6 @@ def test_due_jobs_respects_intervals(settings):
 def test_cloud_database_url_is_normalised():
     assert Settings(_env_file=None, database_url="postgres://u:p@h:5432/db").database_url.startswith("postgresql+psycopg://")
     assert Settings(_env_file=None, retention_raw_payload_days="").retention_raw_payload_days is None
+    pooled = "postgresql://u:p@ep-blue-bird-123-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
+    assert Settings(_env_file=None, database_url=pooled).database_url == \
+        "postgresql+psycopg://u:p@ep-blue-bird-123.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"

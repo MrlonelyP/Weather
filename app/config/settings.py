@@ -5,6 +5,7 @@ Nothing here contains measured data.
 """
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 
 from pydantic import BaseModel, field_validator
@@ -60,8 +61,11 @@ class Settings(BaseSettings):
         """Accept the plain URLs cloud databases hand out (postgres:// or postgresql://)."""
         for prefix in ("postgres://", "postgresql://"):
             if v.startswith(prefix):
-                return "postgresql+psycopg://" + v[len(prefix):]
-        return v
+                v = "postgresql+psycopg://" + v[len(prefix):]
+                break
+        # Neon's pooled endpoint (PgBouncer, transaction mode) drops session settings such as our
+        # per-connection UTC time zone; use the direct endpoint of the same compute instead.
+        return re.sub(r"@(ep-[a-z0-9-]+?)-pooler\.", r"@\1.", v)
 
     @field_validator("retention_raw_payload_days", "retention_water_level_days", "retention_rain_gauge_days",
                      "retention_forecast_days", "retention_observation_days", "retention_log_days",
