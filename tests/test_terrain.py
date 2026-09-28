@@ -203,8 +203,26 @@ def _waterways_zip(path):
         z.writestr("Readme.txt", "Exported Timestamp (UTC+0000): 2026-05-05 12:33:30\n")
 
 
-def test_waterways_import_nearby_and_location_api(dem_dir, tmp_path):
+@pytest.mark.nodb
+def test_production_default_is_copernicus_and_fabdem_never_primary(dem_dir, monkeypatch):
+    assert get_settings().terrain_primary_dataset == "copernicus_glo30"
+    assert get_settings().terrain_dataset_list == ["copernicus_glo30"]
+    monkeypatch.setenv("TERRAIN_COMPARISON_DATASETS", "fabdem_v1_2")
+    get_settings.cache_clear()
+    _ramp_tiles(dem_dir, "fabdem_v1_2")  # only the comparison DEM exists on disk
+    t = terrain_data.terrain_at(14 - 50 * RES, 101.0)
+    assert t["primary_dataset"] == "copernicus_glo30" and t["available"] is False
+    assert t["datasets"]["fabdem_v1_2"]["role"] == "comparison_only" and t["license_warning"] is None
+    monkeypatch.setenv("TERRAIN_PRIMARY_DATASET", "fabdem_v1_2")
+    get_settings.cache_clear()
+    assert "ห้ามใช้เชิงพาณิชย์" in terrain_data.license_warning("fabdem_v1_2")
+
+
+def test_waterways_import_nearby_and_location_api(dem_dir, tmp_path, monkeypatch):
     from app.services.database import session_scope
+
+    monkeypatch.setenv("TERRAIN_COMPARISON_DATASETS", "fabdem_v1_2")
+    get_settings.cache_clear()
 
     _ramp_tiles(dem_dir, "copernicus_glo30")
     _ramp_tiles(dem_dir, "fabdem_v1_2")
@@ -219,7 +237,7 @@ def test_waterways_import_nearby_and_location_api(dem_dir, tmp_path):
     cache.clear()
     lat = 14 - 50 * RES
     d = client.get("/api/location/analyze", params={"lat": lat, "lon": 101.0}).json()
-    assert d["terrain"]["available"] and d["terrain"]["primary_dataset"] == get_settings().terrain_primary_dataset
+    assert d["terrain"]["available"] and d["terrain"]["primary_dataset"] == "copernicus_glo30"
     assert set(d["terrain"]["datasets"]) == {"copernicus_glo30", "fabdem_v1_2"}
     assert d["terrain"]["reliability"]["level"] in ("low", "medium")
     assert any("คลองทดสอบ" in s for s in d["summary_th"]) and any("เลือกจากระยะทาง" in s for s in d["summary_th"])

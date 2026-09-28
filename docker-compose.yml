@@ -32,7 +32,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - terrain:/app/data  # DEM tiles + OSM extract (static, ~4.6 GB for Thailand)
+      - terrain:/app/data  # DEM tiles, OSM extract, HydroSHEDS (static, ~4.5 GB for Thailand)
     depends_on:
       migrate:
         condition: service_completed_successfully

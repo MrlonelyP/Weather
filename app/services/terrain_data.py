@@ -28,7 +28,7 @@ _LOCK = threading.Lock()
 
 LIMITS_TH = [
     "DEM ความละเอียด 30 ม. มีความคลาดเคลื่อนแนวดิ่งระดับเมตร พื้นที่ราบอย่างกรุงเทพฯ ความต่างที่น้อยกว่า ~1 ม. อาจเป็นเพียงความคลาดเคลื่อน",
-    "Copernicus เป็น DSM (รวมอาคาร/ต้นไม้) ส่วน FABDEM ลบออกด้วยการประมาณ ในเขตเมืองสองชุดอาจให้ผลต่างกัน",
+    "Copernicus GLO-30 เป็น DSM (รวมความสูงอาคาร/ต้นไม้) ในเขตเมืองและป่าค่าพื้นอาจสูงกว่าจริงและเกิดแอ่งเทียมระหว่างอาคาร",
     "ความสูงอ้างอิง EGM2008 ไม่ใช่ ม.รทก. ของไทย จึงห้ามนำไปเทียบกับระดับน้ำ/ตลิ่งของสถานีโดยตรง",
     "ยังไม่รวมคันกั้นน้ำ ประตูระบายน้ำ ท่อระบายน้ำ และการสูบน้ำ ซึ่งมีผลมากในเขตเมือง",
     "การตรวจหาแอ่งทำในหน้าต่าง 2 กม. แอ่งที่ใหญ่กว่านั้นจะไม่ถูกตรวจพบ",
@@ -93,7 +93,7 @@ def reliability(results: dict[str, dict], comparison: dict, primary: str) -> dic
     if comparison.get("position_agree") is False or comparison.get("depression_agree") is False:
         reasons.append("DEM สองชุดให้ผลไม่ตรงกัน")
     if len(comparison.get("datasets_compared", [])) < 2:
-        reasons.append("มีผลจาก DEM ชุดเดียว")
+        reasons.append("ไม่มี DEM ชุดที่สองไว้เทียบ")
     if res["dataset"]["surface"] == "DSM":
         reasons.append("ผลหลักมาจาก DSM ซึ่งรวมความสูงอาคาร/ต้นไม้")
     level = "low" if reasons else "medium"
@@ -103,6 +103,14 @@ def reliability(results: dict[str, dict], comparison: dict, primary: str) -> dic
             "note": "ยังไม่ได้ตรวจสอบกับข้อมูลสำรวจภาคพื้นดิน จึงไม่มีระดับ high ใน v0.1"}
 
 
+def license_warning(primary: str) -> str | None:
+    info = dataset_info(primary)
+    if info["commercial_use"]:
+        return None
+    return (f"DEM หลักถูกตั้งเป็น {info['name']} ซึ่งเป็น license {info['license']} (ห้ามใช้เชิงพาณิชย์) "
+            "ค่าเริ่มต้นของ production คือ copernicus_glo30")
+
+
 def terrain_at(lat: float, lon: float) -> dict:
     key = (round(lat, 4), round(lon, 4))  # ~11 m, finer than one DEM cell
     with _LOCK:
@@ -110,10 +118,10 @@ def terrain_at(lat: float, lon: float) -> dict:
             _CACHE.move_to_end(key)
             return _CACHE[key]
     settings = get_settings()
-    results = {ds: analyze_dataset(ds, lat, lon) for ds in settings.terrain_dataset_list}
     primary = settings.terrain_primary_dataset
-    if not results.get(primary, {}).get("available"):
-        primary = next((k for k, v in results.items() if v.get("available")), primary)
+    results = {ds: analyze_dataset(ds, lat, lon) for ds in settings.terrain_dataset_list}
+    for ds, r in results.items():  # comparison datasets never replace the primary, even when it is missing
+        r["role"] = "primary" if ds == primary else "comparison_only"
     comparison = compare(results, primary)
     main = results.get(primary, {})
     out = {
@@ -128,6 +136,7 @@ def terrain_at(lat: float, lon: float) -> dict:
         "comparison": comparison,
         "reliability": reliability(results, comparison, primary),
         "limits": LIMITS_TH,
+        "license_warning": license_warning(primary),
         "computed_at": datetime.now(timezone.utc),
     }
     with _LOCK:
@@ -157,7 +166,7 @@ def datasets_status(session: Session) -> dict:
             counts[r.status] = counts.get(r.status, 0) + 1
         out[ds] = {**dataset_meta(ds), "tiles": counts, "bytes": sum(r.bytes or 0 for r in rows if r.status == "downloaded"),
                    "last_fetched_at": max((r.fetched_at for r in rows), default=None),
-                   "primary": ds == settings.terrain_primary_dataset}
+                   "role": "primary" if ds == settings.terrain_primary_dataset else "comparison_only"}
     return out
 
 

@@ -60,5 +60,37 @@
     "_comment": "Nearest OSM waterway search. selection_method is distance_based in v0.1 (no drainage routing).",
     "search_radius_m": 3000,
     "max_results": 5
+  },
+  "flow": {
+    "_comment": "Local flow engine v0.1 (terrain-derived). Direction is withheld when confidence < min_confidence. confidence = drop/(drop + 2*noise) * (1 - filled_share) over the first confidence_length_m of the path.",
+    "method_version": "flow-0.1",
+    "window_half_m": 2500,
+    "confidence_length_m": 500,
+    "direction_length_m": 300,
+    "filled_cell_m": 0.05,
+    "min_confidence": 0.3,
+    "max_confidence": 0.9,
+    "zone_min_depth_m": 0.5,
+    "zone_cell_depth_m": 0.1,
+    "corridor_min_m2": 500000,
+    "path_sample_m": 90,
+    "dem_noise_m": {"copernicus_glo30": 1.5, "fabdem_v1_2": 1.0},
+    "waterway_types_as_outlets": ["river", "canal", "stream", "drain", "ditch", "tidal_channel", "brook"]
+  },
+  "catchment": {
+    "_comment": "Relevant waterway / station selection v0.1 (hierarchies, no scores).",
+    "method_version": "catch-0.1",
+    "station_search_km": 15,
+    "reach_search_m": 1500,
+    "reach_name_match_osm_m": 500,
+    "relation_max_river_km": 400,
+    "basin_acc_corridor_km2": 10
+  },
+  "features": {
+    "_comment": "Historical feature snapshots for a future water forecast model. No model is trained here.",
+    "feature_version": "feat-0.1",
+    "horizons_hours": [1, 3, 6, 12, 24],
+    "label_tolerance_minutes": 30,
+    "upstream_max_stations": 3
   }
 }

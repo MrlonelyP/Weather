@@ -1,5 +1,7 @@
 from app.models.base import Base
 from app.models.flood import FloodExtent, FloodPointCheck
+from app.models.hydro import (HydroBasin, HydroRiver, StaticSourceFile, StationHydroLink, StationRelation,
+                              WaterForecastTraining)
 from app.models.raw import RawPayload
 from app.models.reservoir import Reservoir, ReservoirStatus
 from app.models.source import CollectorRun, DataSourceHealth
@@ -16,12 +18,18 @@ __all__ = [
     "FloodExtent",
     "FloodPointCheck",
     "ForecastRun",
+    "HydroBasin",
+    "HydroRiver",
     "Location",
     "OfficialWarning",
     "RawPayload",
     "Reservoir",
     "ReservoirStatus",
+    "StaticSourceFile",
+    "StationHydroLink",
+    "StationRelation",
     "TerrainProfile",
+    "WaterForecastTraining",
     "WaterLevelObservation",
     "WaterStation",
     "Waterway",

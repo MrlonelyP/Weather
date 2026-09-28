@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.cache import cached
 from app.engines.water_impact import assess
 from app.models import Location, Reservoir, WaterLevelObservation, WaterStation, WeatherStation
+from app.services import catchment_rain
 from app.services import freshness as fr
 from app.services.database import get_db
 from app.services.forecast_data import consensus_for_location
@@ -21,6 +22,39 @@ from app.services.water_data import (filter_options, nearest_stations, observed_
 router = APIRouter(prefix="/api")
 TTL = 30
 FORECAST_POINT_MAX_KM = 30
+
+
+def _rain_windows(db: Session) -> dict:
+    """Observed gauge windows (1/3/6/24 h) for the whole country, shared by catchment rain requests."""
+    return cached("rain:windows", 120, lambda: catchment_rain.observed_windows(db))
+
+
+def station_network(db: Session, st: WaterStation) -> dict:
+    """Catchment, river-network link, upstream/downstream stations and catchment rain of one station."""
+    from app.services.drainage import catchment_assignment
+    from app.services.station_network import link_for, relations_for, station_catchment
+
+    link = link_for(db, st.id)
+    catch = station_catchment(db, link)
+    rain = None
+    if catch["units"]:
+        rain = {"observed": catchment_rain.observed(db, catch["units"], _rain_windows(db)),
+                "forecast": catchment_rain.forecast(db, catch["units"], (st.lat, st.lon))}
+    units = catchment_assignment(db, st.lat, st.lon, flat=False) if st.lat is not None else {"available": False}
+    return {
+        "source": "HydroSHEDS (HydroBASINS v1c, HydroRIVERS v1.0) + OpenStreetMap + ThaiWater",
+        "catchment": {k: units.get(k) for k in ("available", "basin", "sub_basin", "local_catchment", "catchment_id",
+                                                 "thai_basin")},
+        "catchment_method": catch["method"], "catchment_note": catch["note"],
+        "catchment_area_km2": catch["area_km2"],
+        "river_link": None if link is None else {
+            "reach_method": link.reach_method, "hyriv_id": link.hyriv_id, "reach_distance_m": link.reach_distance_m,
+            "reach_upland_km2": link.reach_upland_km2, "osm_waterway_name": link.osm_waterway_name,
+            "confidence": link.confidence, "computed_at": link.computed_at},
+        "relations": relations_for(db, st.id),
+        "relations_note": "ยังไม่ประเมินเวลาที่น้ำเดินทางระหว่างสถานี (lag) จนกว่าจะมีข้อมูลย้อนหลังเพียงพอ",
+        "catchment_rain": rain,
+    }
 
 
 def _all_states(db: Session) -> list[dict]:
@@ -64,6 +98,9 @@ def water_station_detail(station_code: str, range: str = Query("24h", pattern="^
         if d is None:
             return None
         d["impact"] = _impact(db, d["lat"], d["lon"], d["state"])
+        st = db.execute(select(WaterStation).where(WaterStation.source == "thaiwater",
+                                                   WaterStation.station_code == station_code)).scalar_one_or_none()
+        d["network"] = station_network(db, st) if st is not None else None
         d["freshness"] = fr.block_freshness(db, "thaiwater.waterlevel")
         return d
     data = cached(f"wdetail:{station_code}:{range}", TTL, build)

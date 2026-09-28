@@ -23,14 +23,17 @@ def get_location(session: Session, code: str) -> Location | None:
 
 
 def latest_runs(session: Session, now: datetime | None = None) -> list[ForecastRun]:
-    """Newest run per model, if not older than max_run_age_hours."""
+    """Newest run per model that we had fetched by `now`, if not older than max_run_age_hours.
+
+    Filtering on fetched_at makes the result reproducible as of a past time (no look-ahead).
+    """
     now = now or utcnow()
     max_age = timedelta(hours=engine_config()["consensus"]["max_run_age_hours"])
     runs = []
     for (model,) in session.execute(select(ForecastRun.model).distinct().order_by(ForecastRun.model)):
-        run = session.execute(select(ForecastRun).where(ForecastRun.model == model)
-                              .order_by(ForecastRun.model_run_time.desc()).limit(1)).scalar_one()
-        if now - run.model_run_time <= max_age:
+        run = session.execute(select(ForecastRun).where(ForecastRun.model == model, ForecastRun.fetched_at <= now)
+                              .order_by(ForecastRun.model_run_time.desc()).limit(1)).scalar_one_or_none()
+        if run is not None and now - run.model_run_time <= max_age:
             runs.append(run)
     return runs
 

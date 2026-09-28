@@ -208,6 +208,38 @@ def _zip_members(client: httpx.Client, url: str) -> dict[str, zipfile.ZipInfo]:
     return _zip_index[url]
 
 
+def stream_zip_member(client: httpx.Client, url: str, zi: zipfile.ZipInfo, dest: Path) -> tuple[str, int]:
+    """Download one member of a remote zip with a single range request; verify size and CRC32."""
+    if zi.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+        raise OSError(f"unsupported zip compression {zi.compress_type}")
+    # local file header: 30 bytes + name + extra, then the compressed data
+    header = _range_get(client, url, zi.header_offset, 30)
+    name_len, extra_len = struct.unpack("<HH", header[26:30])
+    start = zi.header_offset + 30 + name_len + extra_len
+    inflater = zlib.decompressobj(-15) if zi.compress_type == zipfile.ZIP_DEFLATED else None
+    h, size, crc = hashlib.sha256(), 0, 0
+    with client.stream("GET", url, headers={"Range": f"bytes={start}-{start + zi.compress_size - 1}"}) as r:
+        if r.status_code != 206:
+            raise OSError(f"range request not honoured (HTTP {r.status_code})")
+        with dest.open("wb") as f:
+            for block in r.iter_bytes(CHUNK):
+                data = inflater.decompress(block) if inflater else block
+                f.write(data)
+                h.update(data)
+                crc = zlib.crc32(data, crc)
+                size += len(data)
+            if inflater:
+                tail = inflater.flush()
+                f.write(tail)
+                h.update(tail)
+                crc = zlib.crc32(tail, crc)
+                size += len(tail)
+    if size != zi.file_size or crc != zi.CRC:
+        dest.unlink(missing_ok=True)
+        raise OSError(f"zip member check failed (size {size}/{zi.file_size}, crc match {crc == zi.CRC})")
+    return h.hexdigest(), size
+
+
 def _zip_group(lat: int, lon: int) -> str:
     la, lo = lat - lat % 10, lon - lon % 10
     return f"{tile_id(la, lo)}-{tile_id(la + 10, lo + 10)}"
@@ -227,36 +259,10 @@ def download_zip_member(client: httpx.Client, settings: Settings, dataset: str, 
     if zi is None:
         res.status, res.error = "not_at_source", "tile not in archive"
         return res
-    if zi.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
-        raise OSError(f"unsupported zip compression {zi.compress_type}")
-    # local file header: 30 bytes + name + extra, then the compressed data
-    header = _range_get(client, url, zi.header_offset, 30)
-    name_len, extra_len = struct.unpack("<HH", header[26:30])
-    start = zi.header_offset + 30 + name_len + extra_len
     final.parent.mkdir(parents=True, exist_ok=True)
     tmp = final.with_suffix(".part")
-    inflater = zlib.decompressobj(-15) if zi.compress_type == zipfile.ZIP_DEFLATED else None
-    h, size, crc = hashlib.sha256(), 0, 0
-    with client.stream("GET", url, headers={"Range": f"bytes={start}-{start + zi.compress_size - 1}"}) as r:
-        if r.status_code != 206:
-            raise OSError(f"range request not honoured (HTTP {r.status_code})")
-        with tmp.open("wb") as f:
-            for block in r.iter_bytes(CHUNK):
-                data = inflater.decompress(block) if inflater else block
-                f.write(data)
-                h.update(data)
-                crc = zlib.crc32(data, crc)
-                size += len(data)
-            if inflater:
-                tail = inflater.flush()
-                f.write(tail)
-                h.update(tail)
-                crc = zlib.crc32(tail, crc)
-                size += len(tail)
-    if size != zi.file_size or crc != zi.CRC:
-        tmp.unlink(missing_ok=True)
-        raise OSError(f"zip member check failed (size {size}/{zi.file_size}, crc match {crc == zi.CRC})")
-    return _finish(res, tmp, final, h.hexdigest(), size, settings)
+    sha, size = stream_zip_member(client, url, zi, tmp)
+    return _finish(res, tmp, final, sha, size, settings)
 
 
 def save_tile(session: Session, res: TileResult) -> None:

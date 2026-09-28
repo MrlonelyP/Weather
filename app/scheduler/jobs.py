@@ -68,6 +68,13 @@ def configure(scheduler, settings: Settings, collectors: list[BaseCollector] | N
         )
         log.info("scheduled %s every %s", collector.job,
                  "day" if isinstance(collector, OpenMeteoHistoricalCollector) else f"{collector.interval_minutes} min")
+    if settings.features_snapshot_enabled:
+        from app.services.water_features import run_hourly
+
+        scheduler.add_job(run_hourly, trigger=CronTrigger(minute=settings.features_snapshot_minute, timezone="UTC"),
+                          id="features.snapshot", name="features.snapshot", max_instances=1, coalesce=True,
+                          misfire_grace_time=1800, replace_existing=True)
+        log.info("scheduled features.snapshot hourly at minute %d", settings.features_snapshot_minute)
     return collectors
 
 

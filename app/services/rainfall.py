@@ -37,7 +37,7 @@ def gauge_windows(session: Session, window: str, now: datetime | None = None) ->
                WaterLevelObservation.observed_at, WaterLevelObservation.rain_mm, WaterLevelObservation.rain_1h_mm)
         .join(WaterLevelObservation, WaterLevelObservation.station_id == WaterStation.id)
         .where(WaterStation.source == "thaiwater", WaterStation.station_kind == "rain_gauge",
-               WaterLevelObservation.observed_at >= since)
+               WaterLevelObservation.observed_at >= since, WaterLevelObservation.observed_at <= now)
         .order_by(WaterStation.id, WaterLevelObservation.observed_at)).all()
     per_station: dict[int, list] = defaultdict(list)
     meta = {}

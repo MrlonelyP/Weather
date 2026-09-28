@@ -109,6 +109,7 @@ export interface StationDetail {
   forecast_note: string | null;
   impact: ForecastImpact;
   freshness: Freshness | null;
+  network: StationNetwork | null;
 }
 
 export interface NearbyResponse {
@@ -164,4 +165,51 @@ export interface TideResponse {
   available: boolean;
   reason: string;
   stations: unknown[];
+}
+
+export interface CatchmentRainWindow {
+  gauges: number;
+  gauge_mean_mm: number | null;
+  gauge_max_mm: number | null;
+  area_weighted_mm: number | null;
+  coverage: number;
+}
+
+export interface CatchmentRain {
+  basis_th?: string;
+  observed: { catchment_area_km2: number; windows: Record<"1h" | "3h" | "6h" | "24h", CatchmentRainWindow> } | null;
+  forecast: {
+    available: boolean;
+    method: string | null;
+    reason?: string | null;
+    note?: string | null;
+    windows?: Record<string, { mean_mm: number; max_mm: number; confidence: number; points: number }>;
+  } | null;
+}
+
+export interface RelatedStation {
+  station_code: string;
+  name: string | null;
+  river: string | null;
+  river_distance_km: number | null;
+  same_river_name: boolean | null;
+  confidence: number | null;
+  lag_hours: number | null;
+}
+
+export interface StationNetwork {
+  source: string;
+  catchment: {
+    available: boolean;
+    catchment_id?: string;
+    thai_basin?: { name: string; share: number; stations: number } | null;
+    sub_basin?: { area_km2: number } | null;
+  };
+  catchment_method: "reach_network" | "local_unit_only" | null;
+  catchment_note: string;
+  catchment_area_km2: number | null;
+  river_link: { reach_method: string; osm_waterway_name: string | null; confidence: number | null; reach_distance_m: number | null } | null;
+  relations: { upstream: RelatedStation[]; downstream: RelatedStation[] };
+  relations_note: string;
+  catchment_rain: CatchmentRain | null;
 }

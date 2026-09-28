@@ -11,6 +11,11 @@
     python -m app.cli terrain-status               # DEM tiles on disk / at source
     python -m app.cli waterways-import [--refresh]  # OSM waterways (HOT export, ODbL) into PostGIS
     python -m app.cli terrain-precompute            # terrain attributes for stations / forecast points
+    python -m app.cli hydro-import [--skip-download] # HydroSHEDS basins, rivers, 15" rasters (region only)
+    python -m app.cli hydro-link                    # station -> river reach, upstream/downstream relations
+    python -m app.cli features-snapshot [--as-of 2026-09-28T05:00] [--no-forecast]
+    python -m app.cli features-backfill --hours 48  # past hours from stored observations (as-of, no look-ahead)
+    python -m app.cli features-label                # fill actual levels for rows whose target time has passed
 """
 from __future__ import annotations
 
@@ -206,6 +211,71 @@ def cmd_terrain_precompute(_args) -> int:
     return 0
 
 
+def cmd_hydro_import(args) -> int:
+    from app.services import hydro_import
+    from app.services.database import session_scope
+
+    with session_scope() as session:
+        if not args.skip_download:
+            print("download", hydro_import.download(session))
+        print("basins", hydro_import.import_basins(session))
+        print("rivers", hydro_import.import_rivers(session))
+    print("rasters", hydro_import.clip_rasters())
+    return 0
+
+
+def cmd_hydro_link(_args) -> int:
+    from app.services.database import session_scope
+    from app.services.station_network import build_relations, link_all
+
+    with session_scope() as session:
+        print("links", link_all(session))
+        print("relations", build_relations(session))
+    return 0
+
+
+def _as_of(value: str | None):
+    from datetime import datetime, timezone
+
+    if not value:
+        return None
+    t = datetime.fromisoformat(value)
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def cmd_features_snapshot(args) -> int:
+    from app.services.database import session_scope
+    from app.services.water_features import snapshot
+
+    with session_scope() as session:
+        print(snapshot(session, _as_of(args.as_of), with_forecast=not args.no_forecast))
+    return 0
+
+
+def cmd_features_backfill(args) -> int:
+    from datetime import timedelta
+
+    from app.services.database import session_scope
+    from app.services.normalizer import utcnow
+    from app.services.water_features import label_due, snapshot
+
+    end = utcnow().replace(minute=0, second=0, microsecond=0)
+    with session_scope() as session:
+        for h in range(args.hours, 0, -1):
+            print(snapshot(session, end - timedelta(hours=h), with_forecast=not args.no_forecast))
+        print("label", label_due(session))
+    return 0
+
+
+def cmd_features_label(_args) -> int:
+    from app.services.database import session_scope
+    from app.services.water_features import label_due
+
+    with session_scope() as session:
+        print(label_due(session))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     setup_logging(get_settings().log_level)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -236,6 +306,19 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_terrain_download)
     sub.add_parser("terrain-status").set_defaults(func=cmd_terrain_status)
     sub.add_parser("terrain-precompute").set_defaults(func=cmd_terrain_precompute)
+    sub.add_parser("hydro-link").set_defaults(func=cmd_hydro_link)
+    p = sub.add_parser("features-snapshot")
+    p.add_argument("--as-of")
+    p.add_argument("--no-forecast", action="store_true")
+    p.set_defaults(func=cmd_features_snapshot)
+    p = sub.add_parser("features-backfill")
+    p.add_argument("--hours", type=int, default=24)
+    p.add_argument("--no-forecast", action="store_true")
+    p.set_defaults(func=cmd_features_backfill)
+    sub.add_parser("features-label").set_defaults(func=cmd_features_label)
+    p = sub.add_parser("hydro-import")
+    p.add_argument("--skip-download", action="store_true")
+    p.set_defaults(func=cmd_hydro_import)
     p = sub.add_parser("waterways-import")
     p.add_argument("--refresh", action="store_true", help="download the extract again")
     p.set_defaults(func=cmd_waterways_import)

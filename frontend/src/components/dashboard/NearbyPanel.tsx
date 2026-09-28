@@ -8,6 +8,7 @@ import type { LocationAnalysis } from "@/types/location";
 import type { NearbyResponse } from "@/types/water";
 import { fmtDistance, fmtNum } from "@/utils/format";
 import { ImpactBlock } from "./ImpactBlock";
+import { LocationDrainageBlock } from "./DrainageBlocks";
 import { TerrainBlock } from "./TerrainBlock";
 import { TrendCell } from "./TrendCell";
 
@@ -45,6 +46,7 @@ export function NearbyPanel({ data, analysis, onSelect, onClose }: {
             <p className="text-[12px] text-ink-2">ฝน 24 ชม. ใกล้เคียง: {data.rain_gauges.slice(0, 3).map((g) => `${g.name} ${fmtNum(g.rain_24h_mm, 1)} มม.`).join(" · ")}</p>
           )}
           <ImpactBlock impact={data.impact} />
+          {analysis && <LocationDrainageBlock data={analysis} />}
           {analysis && <TerrainBlock data={analysis} />}
         </div>
       )}

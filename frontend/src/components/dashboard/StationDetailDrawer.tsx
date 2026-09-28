@@ -14,6 +14,7 @@ import { waterService } from "@/services/water";
 import type { RangeKey } from "@/types/water";
 import { fmtDayTime, fmtDistance, fmtNum, fmtSigned, fmtTime } from "@/utils/format";
 import { TREND, trendKey } from "@/utils/status";
+import { StationNetworkBlock } from "./DrainageBlocks";
 import { ImpactBlock } from "./ImpactBlock";
 
 const RANGES: { value: RangeKey; label: string }[] = [
@@ -70,6 +71,7 @@ export function StationDetailDrawer({ code, onClose }: { code: string | null; on
           </div>
 
           <ImpactBlock impact={d.impact} />
+          <StationNetworkBlock net={d.network} />
 
           <div className="rounded-xl border border-line p-3 text-[12.5px]">
             <p className="mb-1 font-semibold text-ink-2">ค่าที่ต้นทาง (ThaiWater) กำหนด</p>

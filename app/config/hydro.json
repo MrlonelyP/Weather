@@ -1,0 +1,41 @@
+{
+  "_comment": "Hydrography sources (metadata only). HydroSHEDS v1 products: free for scientific, educational and commercial use when integrated into a product (not redistributed stand-alone); attribution required (see license_attribution).",
+  "region_bbox": [96.5, 5.0, 106.5, 21.0],
+  "region_note": "Units / reaches intersecting this box are kept (Thailand + 0.5 deg). Upstream areas outside it (e.g. upper Mekong / Salween) are not stored; catchments report their coverage.",
+  "license": "HydroSHEDS v1 license agreement (WWF): commercial use allowed within derivative products, no stand-alone redistribution, attribution required",
+  "license_attribution": "This product incorporates data from the HydroSHEDS version 1 database which is © World Wildlife Fund, Inc. (2006-2022) and has been used herein under license. WWF has not evaluated the data as altered and incorporated within this product, and therefore gives no warranty regarding its accuracy, completeness, currency or suitability for any particular purpose. Portions of the HydroSHEDS v1 database incorporate data which are the intellectual property rights of © USGS (2006-2008), NASA (2000-2005), ESRI (1992-1998), CIAT (2004-2006), UNEP-WCMC (1993), WWF (2004), Commonwealth of Australia (2007), and Her Royal Majesty and the British Crown and are used under license. The HydroSHEDS v1 database and more information are available at https://www.hydrosheds.org.",
+  "citation": "Lehner, B., Verdin, K., Jarvis, A. (2008): New global hydrography derived from spaceborne elevation data. Eos, Transactions, AGU, 89(10): 93-94.",
+  "sources": {
+    "hydrobasins_v1c": {
+      "name": "HydroBASINS v1c (standard, Asia)",
+      "url": "https://data.hydrosheds.org/file/HydroBASINS/standard/hybas_as_lev01-12_v1c.zip",
+      "members": "hybas_as_lev{level:02d}_v1c.{ext}",
+      "levels": [4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "info_url": "https://www.hydrosheds.org/products/hydrobasins"
+    },
+    "hydrorivers_v10": {
+      "name": "HydroRIVERS v1.0 (Asia)",
+      "url": "https://data.hydrosheds.org/file/HydroRIVERS/HydroRIVERS_v10_as_shp.zip",
+      "members": "HydroRIVERS_v10_as.{ext}",
+      "info_url": "https://www.hydrosheds.org/products/hydrorivers"
+    },
+    "hydrosheds_dir_15s": {
+      "name": "HydroSHEDS v1 flow direction 15 arc-second (Asia)",
+      "url": "https://data.hydrosheds.org/file/hydrosheds-v1-dir/hyd_as_dir_15s.zip",
+      "members": "hyd_as_dir_15s.tif",
+      "info_url": "https://www.hydrosheds.org/products/hydrosheds"
+    },
+    "hydrosheds_acc_15s": {
+      "name": "HydroSHEDS v1 flow accumulation 15 arc-second (Asia)",
+      "url": "https://data.hydrosheds.org/file/hydrosheds-v1-acc/hyd_as_acc_15s.zip",
+      "members": "hyd_as_acc_15s.tif",
+      "info_url": "https://www.hydrosheds.org/products/hydrosheds"
+    }
+  },
+  "catchment_levels": {
+    "_comment": "Which HydroBASINS level is reported as basin / sub_basin / local catchment. Median unit size over Thailand: level 5 ~13,800 km2, level 7 ~1,600 km2 (close to the ~1,450 km2 average of the national sub-basins), level 12 ~140 km2.",
+    "basin": 5,
+    "sub_basin": 7,
+    "local_catchment": 12
+  }
+}

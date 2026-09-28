@@ -158,11 +158,15 @@ class Settings(BaseSettings):
     # --- Terrain / DEM (static data, see app/config/terrain.json) ------------
     # GeoTIFF tiles live here as files (not in PostGIS); keep it on a persistent volume
     dem_data_dir: str = "data/dem"
-    # datasets to download/use; both are 1 arc-second (~30 m)
-    terrain_datasets: str = "copernicus_glo30,fabdem_v1_2"
-    # dataset whose result is shown first. fabdem_v1_2 is bare-earth (better in towns) but
-    # CC BY-NC-SA (non-commercial only); set copernicus_glo30 for a commercial deployment.
-    terrain_primary_dataset: str = "fabdem_v1_2"
+    # Production default DEM: Copernicus GLO-30 (free, commercial use allowed with attribution).
+    terrain_primary_dataset: str = "copernicus_glo30"
+    # Optional extra DEMs computed side by side for comparison / validation only; never the primary.
+    # e.g. "fabdem_v1_2" - FABDEM is CC BY-NC-SA 4.0 (NON-COMMERCIAL): do not enable it in a
+    # commercial deployment without a licence from Fathom.
+    terrain_comparison_datasets: str = ""
+    # hourly water-forecast feature snapshot + labelling (water_forecast_training); no model is trained
+    features_snapshot_enabled: bool = True
+    features_snapshot_minute: int = 25
     terrain_download_workers: int = 4
     terrain_download_timeout_seconds: float = 600.0
 
@@ -172,7 +176,9 @@ class Settings(BaseSettings):
 
     @property
     def terrain_dataset_list(self) -> list[str]:
-        return [d.strip() for d in self.terrain_datasets.split(",") if d.strip()]
+        """Primary first, then comparison datasets (deduplicated)."""
+        extra = [d.strip() for d in self.terrain_comparison_datasets.split(",") if d.strip()]
+        return list(dict.fromkeys([self.terrain_primary_dataset, *extra]))
 
     @property
     def openmeteo_hourly_list(self) -> list[str]:

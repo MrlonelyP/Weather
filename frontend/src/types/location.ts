@@ -1,4 +1,4 @@
-import type { ForecastImpact } from "./water";
+import type { CatchmentRain, ForecastImpact } from "./water";
 
 export type TerrainPosition = "LOW_AREA" | "NORMAL" | "HIGH_AREA" | "MIXED" | "UNKNOWN";
 export type TerrainSignal = "may_collect_water" | "neutral" | "less_likely_to_collect" | "uncertain" | "unknown";
@@ -66,11 +66,52 @@ export interface WaterwaysResult {
   items?: WaterwayItem[];
 }
 
+export interface DrainageResult {
+  local_flow: {
+    available: boolean;
+    reliable?: boolean;
+    flow_direction?: string | null;
+    flow_direction_th?: string | null;
+    confidence: number;
+    message_th?: string | null;
+    path_length_m?: number;
+    reached?: { type: string; name?: string | null; waterway_type_th?: string };
+    limitations: string[];
+  };
+  catchment: {
+    available: boolean;
+    catchment_id?: string;
+    thai_basin?: { name: string; share: number } | null;
+    confidence: number;
+    confidence_note?: string;
+  };
+}
+
+export interface WaterwayChoice {
+  selection_method: "drainage_based" | "catchment_based" | "distance_based";
+  name: string | null;
+  waterway_type_th?: string;
+  confidence: number | null;
+  usable: boolean;
+  note?: string | null;
+}
+
+export interface RelevantStation {
+  selected: { station_code: string; name: string | null; river: string | null; distance_km: number | null } | null;
+  selection_method: "same_waterway_and_catchment" | "same_waterway" | "same_catchment" | "nearby" | "none";
+  reason_th: string;
+  confidence: number;
+}
+
 export interface LocationAnalysis {
   generated_at: string;
   point: { lat: number; lon: number; in_thailand: boolean };
   summary_th: string[];
   terrain: TerrainResult;
+  drainage: DrainageResult;
+  relevant_waterway: { selected: WaterwayChoice | null; selection_method: string; reason_th: string; candidates: WaterwayChoice[] };
+  relevant_station: RelevantStation;
+  rain: { catchment: CatchmentRain | null };
   terrain_signal: { signal: TerrainSignal; label_th: string; reasons: string[]; reliability: string | null; use: string };
   waterways: WaterwaysResult;
   impact: ForecastImpact;

@@ -10,16 +10,26 @@
 | ชนิด | DSM (รวมอาคาร/ต้นไม้) | DTM (ลบอาคาร/ต้นไม้ออกด้วยการประมาณ) | เส้นทางน้ำ (river/canal/stream/drain/ditch/tidal_channel) |
 | ความละเอียด | 1 arc-second (~30 ม.) | 1 arc-second (~30 ม.) | เวกเตอร์ |
 | ความสูงอ้างอิง | EGM2008 | EGM2008 | - |
-| License | Copernicus DEM licence: ใช้ฟรี ใช้เชิงพาณิชย์ได้ ต้องใส่ attribution | **CC BY-NC-SA 4.0 (ห้ามใช้เชิงพาณิชย์)** | ODbL 1.0 |
+| บทบาท | **Production default** | เปรียบเทียบ/ตรวจสอบเท่านั้น (ปิดเป็นค่าเริ่มต้น) | ทางน้ำ |
+| License | Copernicus DEM licence: ใช้ฟรี ใช้เชิงพาณิชย์ได้ ต้องใส่ attribution | **CC BY-NC-SA 4.0 (ห้ามใช้เชิงพาณิชย์)** | ODbL 1.0 (ต้องใส่ attribution; ถ้าเผยแพร่ฐานข้อมูลที่ดัดแปลงต้องใช้ ODbL) |
 | ที่มา | AWS Open Data (COG ทีละ 1°×1°) | University of Bristol (zip 10°×10°) | HOT Export Tool ผ่าน HDX (snapshot 2026-05-05) |
 | ขนาดสำหรับประเทศไทย | 77 tiles, 2.97 GB | 77 tiles, 1.61 GB (ดึงเฉพาะ tile ที่ใช้จาก zip ด้วย HTTP range) | zip 19 MB, 53,967 เส้น |
 
 การเลือก tile ใช้ขอบเขตประเทศจาก Natural Earth (public domain) ที่ `app/config/thailand_boundary.geojson`
 ขยายออก 0.02° ไฟล์นี้ใช้เลือก tile เท่านั้น ไม่ใช่เขตแดนทางการ
 
-**DEM หลัก** กำหนดด้วย `TERRAIN_PRIMARY_DATASET` ค่าเริ่มต้นคือ `fabdem_v1_2` เพราะในเมืองใกล้พื้นดินจริงกว่า
-ถ้านำระบบไปใช้เชิงพาณิชย์ ให้ตั้งเป็น `copernicus_glo30` หรือติดต่อขอ license จาก Fathom
-ระบบคำนวณจาก**ทั้งสองชุด**เสมอ แล้วนำผลมาเทียบกัน ถ้าไม่ตรงกันจะลดความน่าเชื่อถือลง
+### DEM ที่ใช้ใน production และเรื่อง license
+- **Production default: Copernicus DEM GLO-30** (`TERRAIN_PRIMARY_DATASET=copernicus_glo30`)
+  ใช้ได้ฟรีรวมถึงเชิงพาณิชย์ แต่ต้องแสดง attribution:
+  "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA"
+  (ระบบส่งข้อความนี้ใน `sources` ของ API ทุกครั้ง)
+- **FABDEM V1-2 ใช้เพื่อเปรียบเทียบหรือตรวจสอบเท่านั้น** เพราะเป็น license CC BY-NC-SA 4.0 ซึ่ง**ห้ามใช้เชิงพาณิชย์**
+  - ปิดไว้เป็นค่าเริ่มต้น เปิดได้ด้วย `TERRAIN_COMPARISON_DATASETS=fabdem_v1_2` เฉพาะงานที่ไม่ใช่เชิงพาณิชย์
+  - ผลจาก FABDEM มี `role: comparison_only` และจะไม่ถูกใช้แทน DEM หลัก แม้ในจุดที่ DEM หลักไม่มีข้อมูล
+  - ข้อความสรุปภาษาไทยใช้ผลจาก DEM หลักเท่านั้น
+  - ถ้าตั้ง `TERRAIN_PRIMARY_DATASET` เป็นชุดที่ห้ามใช้เชิงพาณิชย์ API จะแสดง `license_warning`
+  - งานเชิงพาณิชย์ที่ต้องการใช้ FABDEM ต้องขอ license จาก Fathom (fabdem@fathom.global)
+- `terrain-download` จะดาวน์โหลดเฉพาะ DEM หลัก และชุดเปรียบเทียบที่เปิดไว้เท่านั้น
 
 ## 2. การเก็บข้อมูล
 - **ไฟล์ DEM เก็บเป็น GeoTIFF** ที่ `data/dem/<dataset>/<N13E100>.tif` (docker volume `terrain`) ไม่เก็บใน PostGIS raster
@@ -99,7 +109,7 @@ signal นี้แสดงคู่กับเหตุผลด้านน�
 
 ## 9. คำสั่ง
 ```bash
-python -m app.cli terrain-download                 # ทั้งสองชุด ทั้งประเทศ (~4.6 GB), ข้ามไฟล์ที่มีแล้ว
+python -m app.cli terrain-download                 # DEM หลัก (Copernicus ~3 GB) + ชุดเปรียบเทียบที่เปิดไว้
 python -m app.cli terrain-download --dataset copernicus_glo30 --tile N13E100
 python -m app.cli terrain-status
 python -m app.cli waterways-import [--refresh]
